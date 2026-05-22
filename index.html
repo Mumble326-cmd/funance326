@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finance Tracker</title>
+<style>
+  /* ============================================================
+     STYLES — all the visual stuff lives here.
+     You can read this top-to-bottom; nothing is hidden.
+     ============================================================ */
+
+  :root {
+    /* Colours defined once, reused everywhere. Change here = changes everywhere. */
+    --bg: #0f1115;
+    --panel: #181b22;
+    --panel-2: #1f2530;
+    --line: #2a313d;
+    --ink: #e8eaed;
+    --muted: #8b94a3;
+    --accent: #4ade80;   /* green — money left */
+    --warn: #fbbf24;     /* amber — getting tight */
+    --bad: #f87171;      /* red — overspent */
+    --blue: #60a5fa;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    padding: 24px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 20px; }
+
+  /* The big "what's left" number at the top */
+  .hero {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .hero .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .hero .big { font-size: 40px; font-weight: 700; line-height: 1.1; margin: 4px 0; }
+  .hero .big.good { color: var(--accent); }
+  .hero .big.warn { color: var(--warn); }
+  .hero .big.bad  { color: var(--bad); }
+  .hero .note { color: var(--muted); font-size: 12px; }
+
+  /* Generic card */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+
+  /* A single line: label on left, number on right */
+  .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+  .row:last-child { border-bottom: none; }
+  .row .amt { font-variant-numeric: tabular-nums; }
+  .row.total { font-weight: 700; border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; }
+  .row .neg { color: var(--bad); }
+  .row .pos { color: var(--accent); }
+
+  /* The log-an-expense form */
+  .form-grid { display: grid; grid-template-columns: 1fr 110px 120px; gap: 8px; }
+  input, select, button {
+    font-family: inherit;
+    font-size: 14px;
+    background: var(--panel-2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--blue); }
+  button {
+    cursor: pointer;
+    background: var(--accent);
+    color: #06210f;
+    font-weight: 700;
+    border: none;
+  }
+  button:hover { filter: brightness(1.1); }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 400; }
+  button.ghost:hover { color: var(--ink); }
+
+  /* List of logged expenses */
+  .expense {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .expense:last-child { border-bottom: none; }
+  .expense .meta { color: var(--muted); font-size: 11px; }
+  .expense .x { color: var(--muted); cursor: pointer; padding: 0 6px; }
+  .expense .x:hover { color: var(--bad); }
+  .empty { color: var(--muted); font-size: 13px; font-style: italic; padding: 8px 0; }
+
+  .footer-note { color: var(--muted); font-size: 11px; text-align: center; margin-top: 8px; }
+  .reset { color: var(--muted); font-size: 11px; text-decoration: underline; cursor: pointer; }
+</style>
+</head>
+<body>
+
+  <h1>FINANCE TRACKER</h1>
+  <p class="sub">Colombo · LKR · paid 1st of month</p>
+
+  <!-- HERO: the one number that matters -->
+  <div class="hero">
+    <div class="label">Disposable left this month</div>
+    <div class="big good" id="leftBig">—</div>
+    <div class="note" id="leftNote"></div>
+  </div>
+
+  <!-- THE MATH: how we got to that number -->
+  <div class="card">
+    <h2>The math</h2>
+    <div class="row"><span>Salary in</span><span class="amt" id="mIncome"></span></div>
+    <div class="row"><span>Fixed costs</span><span class="amt neg" id="mFixed"></span></div>
+    <div class="row"><span>Subscriptions</span><span class="amt neg" id="mSubs"></span></div>
+    <div class="row"><span>Logged spending</span><span class="amt neg" id="mSpent"></span></div>
+    <div class="row total"><span>Left</span><span class="amt" id="mLeft"></span></div>
+  </div>
+
+  <!-- LOG AN EXPENSE -->
+  <div class="card">
+    <h2>Log an expense</h2>
+    <div class="form-grid">
+      <input type="text" id="expName" placeholder="What was it?">
+      <input type="number" id="expAmt" placeholder="Amount" min="0">
+      <select id="expCat">
+        <option value="Food">Food</option>
+        <option value="Transport">Transport (extra)</option>
+        <option value="Shopping">Shopping</option>
+        <option value="Bills">Bills</option>
+        <option value="Trip">Trip (Bangladesh)</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div style="margin-top:8px; display:flex; gap:8px;">
+      <button id="addBtn" style="flex:1;">Log it →</button>
+    </div>
+  </div>
+
+  <!-- WHAT YOU'VE LOGGED -->
+  <div class="card">
+    <h2>This month's spending</h2>
+    <div id="expList"></div>
+  </div>
+
+  <p class="footer-note">
+    Saved in this browser. <span class="reset" id="resetBtn">Reset month</span>
+  </p>
+
+<script>
+/* ============================================================
+   LOGIC — the brain of the app.
+   Read it in three parts: (1) the data, (2) the math,
+   (3) the buttons that change the data.
+   ============================================================ */
+
+// -------- PART 1: THE DATA --------
+// These are your fixed numbers from the baseline. They don't change month to month.
+const INCOME = 217000;
+
+const FIXED = {
+  "Rent": 30000,
+  "Phone": 14000,
+  "Seed/savings": 50000,
+  "Transport": 30000
+};
+
+const SUBS = {
+  "Claude Pro": 6000,
+  "Spotify": 749,
+  "Google One": 600
+};
+
+// Helper: add up all the values in an object like FIXED or SUBS.
+function sumObject(obj) {
+  let total = 0;
+  for (const key in obj) total += obj[key];
+  return total;
+}
+
+const FIXED_TOTAL = sumObject(FIXED);   // 124,000
+const SUBS_TOTAL  = sumObject(SUBS);    // 7,349
+
+// "expenses" is the ONLY thing that changes as you use the app.
+// It's a list. Each item looks like: { name, amount, cat, date }
+// We load whatever was saved last time, or start with an empty list.
+let expenses = load();
+
+// -------- PART 2: SAVING & LOADING --------
+// localStorage is the browser's little notebook. We write our list to it
+// as text, and read it back next time the page opens.
+function save() {
+  localStorage.setItem("finance_expenses", JSON.stringify(expenses));
+}
+function load() {
+  const saved = localStorage.getItem("finance_expenses");
+  return saved ? JSON.parse(saved) : [];   // if nothing saved, empty list
+}
+
+// -------- PART 3: THE MATH --------
+function totalSpent() {
+  let total = 0;
+  for (const e of expenses) total += e.amount;
+  return total;
+}
+
+// Format a number like 85651 -> "85,651"
+function fmt(n) {
+  return Math.round(n).toLocaleString("en-US");
+}
+
+// -------- PART 4: DRAWING THE SCREEN --------
+// This function reads the current data and updates everything you see.
+// We call it whenever something changes.
+function render() {
+  const spent = totalSpent();
+  const left = INCOME - FIXED_TOTAL - SUBS_TOTAL - spent;
+
+  // The big hero number
+  const big = document.getElementById("leftBig");
+  big.textContent = fmt(left);
+  // Colour it based on how much is left
+  big.className = "big " + (left < 0 ? "bad" : left < 20000 ? "warn" : "good");
+
+  // A little context line under it
+  const note = document.getElementById("leftNote");
+  if (left < 0)        note.textContent = "You're over by " + fmt(-left) + ". Past the disposable line.";
+  else if (left < 20000) note.textContent = "Getting tight — " + fmt(left) + " of your 85.6k disposable.";
+  else                 note.textContent = "of ~85,651 disposable (after fixed + subs).";
+
+  // The math breakdown
+  document.getElementById("mIncome").textContent = fmt(INCOME);
+  document.getElementById("mFixed").textContent  = "−" + fmt(FIXED_TOTAL);
+  document.getElementById("mSubs").textContent   = "−" + fmt(SUBS_TOTAL);
+  document.getElementById("mSpent").textContent  = "−" + fmt(spent);
+  const mLeft = document.getElementById("mLeft");
+  mLeft.textContent = fmt(left);
+  mLeft.className = "amt " + (left < 0 ? "neg" : "pos");
+
+  // The list of expenses
+  const list = document.getElementById("expList");
+  if (expenses.length === 0) {
+    list.innerHTML = '<div class="empty">Nothing logged yet.</div>';
+  } else {
+    list.innerHTML = "";
+    // Show newest first
+    [...expenses].reverse().forEach((e) => {
+      const realIndex = expenses.indexOf(e);
+      const div = document.createElement("div");
+      div.className = "expense";
+      div.innerHTML =
+        '<div><div>' + e.name + '</div><div class="meta">' + e.cat + ' · ' + e.date + '</div></div>' +
+        '<div><span class="amt">' + fmt(e.amount) + '</span> ' +
+        '<span class="x" data-i="' + realIndex + '">✕</span></div>';
+      list.appendChild(div);
+    });
+    // Wire up each ✕ delete button
+    list.querySelectorAll(".x").forEach((x) => {
+      x.onclick = () => removeExpense(parseInt(x.dataset.i));
+    });
+  }
+}
+
+// -------- PART 5: THE BUTTONS (actions that change data) --------
+function addExpense() {
+  const name = document.getElementById("expName").value.trim();
+  const amt  = parseFloat(document.getElementById("expAmt").value);
+  const cat  = document.getElementById("expCat").value;
+
+  if (!name || isNaN(amt) || amt <= 0) return;   // ignore empty/bad input
+
+  const today = new Date();
+  const dateStr = today.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+
+  expenses.push({ name, amount: amt, cat, date: dateStr });
+  save();
+  render();
+
+  // clear the form
+  document.getElementById("expName").value = "";
+  document.getElementById("expAmt").value = "";
+  document.getElementById("expName").focus();
+}
+
+function removeExpense(i) {
+  expenses.splice(i, 1);   // remove 1 item at position i
+  save();
+  render();
+}
+
+function resetMonth() {
+  if (confirm("Clear all logged expenses for a fresh month? (Your fixed numbers stay.)")) {
+    expenses = [];
+    save();
+    render();
+  }
+}
+
+// -------- PART 6: HOOK UP THE BUTTONS & DRAW ONCE --------
+document.getElementById("addBtn").onclick = addExpense;
+document.getElementById("resetBtn").onclick = resetMonth;
+// Let Enter key in the amount field also log it
+document.getElementById("expAmt").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") addExpense();
+});
+
+render();   // first draw when the page opens
+</script>
+</body>
+</html>
