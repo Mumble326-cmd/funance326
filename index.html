@@ -6,342 +6,408 @@
 <title>Finance Tracker</title>
 <style>
   /* ============================================================
-     STYLES — all the visual stuff lives here.
-     You can read this top-to-bottom; nothing is hidden.
+     STYLES — all the visual styling lives here.
+     Colours are defined once at the top, reused everywhere.
      ============================================================ */
-
   :root {
-    /* Colours defined once, reused everywhere. Change here = changes everywhere. */
     --bg: #0f1115;
     --panel: #181b22;
     --panel-2: #1f2530;
     --line: #2a313d;
     --ink: #e8eaed;
     --muted: #8b94a3;
-    --accent: #4ade80;   /* green — money left */
-    --warn: #fbbf24;     /* amber — getting tight */
-    --bad: #f87171;      /* red — overspent */
-    --blue: #60a5fa;
+    --accent: #4ade80;   /* green  — healthy / money left */
+    --warn:   #fbbf24;   /* amber  — getting tight */
+    --bad:    #f87171;   /* red    — over budget */
+    --blue:   #60a5fa;   /* links / focus */
+    --gold:   #c4b5fd;   /* goals accent */
   }
-
   * { box-sizing: border-box; margin: 0; padding: 0; }
-
   body {
     font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
-    background: var(--bg);
-    color: var(--ink);
-    line-height: 1.5;
-    padding: 24px;
-    max-width: 760px;
-    margin: 0 auto;
+    background: var(--bg); color: var(--ink); line-height: 1.5;
+    padding: 20px; max-width: 720px; margin: 0 auto;
+    -webkit-text-size-adjust: 100%;
   }
 
-  h1 {
-    font-size: 18px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    margin-bottom: 2px;
-  }
-  .sub { color: var(--muted); font-size: 12px; margin-bottom: 20px; }
+  header { margin-bottom: 18px; }
+  h1 { font-size: 18px; font-weight: 600; letter-spacing: 0.5px; }
+  .sub { color: var(--muted); font-size: 12px; }
 
-  /* The big "what's left" number at the top */
+  /* HERO — the one number that matters */
   .hero {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 16px;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 22px; margin-bottom: 16px;
   }
-  .hero .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
-  .hero .big { font-size: 40px; font-weight: 700; line-height: 1.1; margin: 4px 0; }
+  .hero .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; }
+  .hero .big { font-size: 40px; font-weight: 700; line-height: 1.05; margin: 6px 0; font-variant-numeric: tabular-nums; }
   .hero .big.good { color: var(--accent); }
   .hero .big.warn { color: var(--warn); }
   .hero .big.bad  { color: var(--bad); }
   .hero .note { color: var(--muted); font-size: 12px; }
 
-  /* Generic card */
+  /* CARD — a generic panel */
   .card {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 16px;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px; margin-bottom: 16px;
   }
   .card h2 {
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--muted);
-    margin-bottom: 12px;
-    font-weight: 600;
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); margin-bottom: 12px; font-weight: 600;
+    display: flex; justify-content: space-between; align-items: center;
   }
 
-  /* A single line: label on left, number on right */
+  /* ROW — label left, amount right, optional delete */
   .row {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--line);
-    font-size: 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; gap: 8px;
   }
-  .row:last-child { border-bottom: none; }
+  .row:last-of-type { border-bottom: none; }
+  .row .left-part { display: flex; flex-direction: column; min-width: 0; }
+  .row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .meta { color: var(--muted); font-size: 11px; }
+  .row .right-part { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
   .row .amt { font-variant-numeric: tabular-nums; }
-  .row.total { font-weight: 700; border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; }
+  .row .x { color: var(--muted); cursor: pointer; padding: 2px 6px; font-size: 14px; border-radius: 6px; }
+  .row .x:active, .row .x:hover { color: var(--bad); background: var(--panel-2); }
+  .row.total { font-weight: 700; border-top: 2px solid var(--line); border-bottom: none; margin-top: 4px; padding-top: 12px; }
   .row .neg { color: var(--bad); }
   .row .pos { color: var(--accent); }
 
-  /* The log-an-expense form */
-  .form-grid { display: grid; grid-template-columns: 1fr 110px 120px; gap: 8px; }
+  /* FORM bits */
+  .form { display: grid; gap: 8px; margin-top: 12px; }
+  .form.cols-2 { grid-template-columns: 1fr 120px; }
+  .form.cols-3 { grid-template-columns: 1fr 100px 100px; }
   input, select, button {
-    font-family: inherit;
-    font-size: 14px;
-    background: var(--panel-2);
-    color: var(--ink);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 10px;
+    font-family: inherit; font-size: 15px;
+    background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 9px; padding: 11px;
+    width: 100%;
   }
   input:focus, select:focus { outline: none; border-color: var(--blue); }
-  button {
-    cursor: pointer;
-    background: var(--accent);
-    color: #06210f;
-    font-weight: 700;
-    border: none;
-  }
-  button:hover { filter: brightness(1.1); }
-  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 400; }
-  button.ghost:hover { color: var(--ink); }
+  input::placeholder { color: var(--muted); }
+  button { cursor: pointer; background: var(--accent); color: #06210f; font-weight: 700; border: none; }
+  button:active { filter: brightness(0.92); }
+  button.full { grid-column: 1 / -1; }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 500; }
+  button.ghost:active { color: var(--ink); background: var(--panel-2); }
 
-  /* List of logged expenses */
-  .expense {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--line);
-    font-size: 13px;
-  }
-  .expense:last-child { border-bottom: none; }
-  .expense .meta { color: var(--muted); font-size: 11px; }
-  .expense .x { color: var(--muted); cursor: pointer; padding: 0 6px; }
-  .expense .x:hover { color: var(--bad); }
-  .empty { color: var(--muted); font-size: 13px; font-style: italic; padding: 8px 0; }
+  /* GOALS */
+  .goal { padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .goal:last-child { border-bottom: none; }
+  .goal-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .goal-head .gname { font-weight: 600; }
+  .goal-head .x { color: var(--muted); cursor: pointer; padding: 2px 6px; font-size: 13px; }
+  .goal-head .x:active { color: var(--bad); }
+  .bar-wrap { background: var(--panel-2); border-radius: 8px; height: 9px; overflow: hidden; margin: 8px 0 6px; }
+  .bar { background: var(--gold); height: 100%; width: 0%; transition: width 0.4s ease; }
+  .goal-stat { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .goal-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .goal-actions input { font-size: 13px; padding: 8px; }
+  .goal-actions button { font-size: 13px; padding: 8px 12px; width: auto; }
+  .goal-install { font-size: 11px; color: var(--gold); margin-top: 6px; }
 
-  .footer-note { color: var(--muted); font-size: 11px; text-align: center; margin-top: 8px; }
-  .reset { color: var(--muted); font-size: 11px; text-decoration: underline; cursor: pointer; }
+  .empty { color: var(--muted); font-size: 13px; font-style: italic; padding: 6px 0; }
+  .tip { color: var(--muted); font-size: 11px; margin-top: 10px; line-height: 1.5; }
+  footer { color: var(--muted); font-size: 11px; text-align: center; margin-top: 8px; padding-bottom: 20px; }
+  .reset { color: var(--muted); text-decoration: underline; cursor: pointer; }
 </style>
 </head>
 <body>
 
-  <h1>FINANCE TRACKER</h1>
-  <p class="sub">Colombo · LKR · paid 1st of month</p>
+  <header>
+    <h1>FINANCE TRACKER</h1>
+    <p class="sub" id="subline">Add your income to begin</p>
+  </header>
 
-  <!-- HERO: the one number that matters -->
+  <!-- ============ HERO: disposable left ============ -->
   <div class="hero">
     <div class="label">Disposable left this month</div>
     <div class="big good" id="leftBig">—</div>
-    <div class="note" id="leftNote"></div>
+    <div class="note" id="leftNote">Set your income and recurring costs below.</div>
   </div>
 
-  <!-- THE MATH: how we got to that number -->
+  <!-- ============ INCOME ============ -->
   <div class="card">
-    <h2>The math</h2>
-    <div class="row"><span>Salary in</span><span class="amt" id="mIncome"></span></div>
-    <div class="row"><span>Fixed costs</span><span class="amt neg" id="mFixed"></span></div>
-    <div class="row"><span>Subscriptions</span><span class="amt neg" id="mSubs"></span></div>
-    <div class="row"><span>Logged spending</span><span class="amt neg" id="mSpent"></span></div>
-    <div class="row total"><span>Left</span><span class="amt" id="mLeft"></span></div>
-  </div>
-
-  <!-- LOG AN EXPENSE -->
-  <div class="card">
-    <h2>Log an expense</h2>
-    <div class="form-grid">
-      <input type="text" id="expName" placeholder="What was it?">
-      <input type="number" id="expAmt" placeholder="Amount" min="0">
-      <select id="expCat">
-        <option value="Food">Food</option>
-        <option value="Transport">Transport (extra)</option>
-        <option value="Shopping">Shopping</option>
-        <option value="Bills">Bills</option>
-        <option value="Trip">Trip (Bangladesh)</option>
-        <option value="Other">Other</option>
-      </select>
-    </div>
-    <div style="margin-top:8px; display:flex; gap:8px;">
-      <button id="addBtn" style="flex:1;">Log it →</button>
+    <h2>Monthly income</h2>
+    <div class="form cols-2">
+      <input type="number" id="incomeInput" placeholder="Your monthly income" min="0" inputmode="numeric">
+      <button id="saveIncome">Save</button>
     </div>
   </div>
 
-  <!-- WHAT YOU'VE LOGGED -->
+  <!-- ============ RECURRING (fixed costs + subscriptions) ============ -->
   <div class="card">
-    <h2>This month's spending</h2>
-    <div id="expList"></div>
+    <h2>Recurring monthly costs</h2>
+    <div id="recurringList"></div>
+    <div class="form cols-2">
+      <input type="text" id="recName" placeholder="e.g. Rent, Spotify, Transport">
+      <input type="number" id="recAmt" placeholder="Amount" min="0" inputmode="numeric">
+      <button class="full" id="addRec">+ Add recurring cost</button>
+    </div>
+    <p class="tip">Things that come out every month automatically — rent, bills, subscriptions.</p>
   </div>
 
-  <p class="footer-note">
-    Saved in this browser. <span class="reset" id="resetBtn">Reset month</span>
-  </p>
+  <!-- ============ EXPENSES (one-offs this month) ============ -->
+  <div class="card">
+    <h2>This month's expenses</h2>
+    <div id="expenseList"></div>
+    <div class="form cols-2">
+      <input type="text" id="expName" placeholder="e.g. Lunch, Taxi, Groceries">
+      <input type="number" id="expAmt" placeholder="Amount" min="0" inputmode="numeric">
+      <button class="full" id="addExp">+ Log expense</button>
+    </div>
+    <p class="tip">One-off spending as it happens. <span class="reset" id="resetExp">Clear all for a new month</span></p>
+  </div>
+
+  <!-- ============ GOALS ============ -->
+  <div class="card">
+    <h2>Savings goals</h2>
+    <div id="goalList"></div>
+    <div class="form cols-3">
+      <input type="text" id="goalName" placeholder="What are you saving for?">
+      <input type="number" id="goalTarget" placeholder="Target" min="0" inputmode="numeric">
+      <input type="number" id="goalMonths" placeholder="Months" min="1" inputmode="numeric">
+      <button class="full" id="addGoal">+ Add goal</button>
+    </div>
+    <p class="tip">Set a target and how many months you've got — it shows what to set aside each month, and tracks what you've saved.</p>
+  </div>
+
+  <footer>
+    Everything saves to this device only. Nothing leaves your phone.
+  </footer>
 
 <script>
 /* ============================================================
-   LOGIC — the brain of the app.
-   Read it in three parts: (1) the data, (2) the math,
-   (3) the buttons that change the data.
+   LOGIC — the brain. Read it in these parts:
+   1. The data + how it saves/loads
+   2. Helpers (formatting, totals)
+   3. render() — draws everything from the data
+   4. Actions — the buttons that change the data
+   5. Wiring — connect buttons, draw once
    ============================================================ */
 
 // -------- PART 1: THE DATA --------
-// These are your fixed numbers from the baseline. They don't change month to month.
-const INCOME = 217000;
+// "state" is the single source of truth. Everything you see is drawn from it.
+// It starts empty — the app ships with nothing personal inside.
+let state = load();
 
-const FIXED = {
-  "Rent": 30000,
-  "Phone": 14000,
-  "Seed/savings": 50000,
-  "Transport": 30000
-};
-
-const SUBS = {
-  "Claude Pro": 6000,
-  "Spotify": 749,
-  "Google One": 600
-};
-
-// Helper: add up all the values in an object like FIXED or SUBS.
-function sumObject(obj) {
-  let total = 0;
-  for (const key in obj) total += obj[key];
-  return total;
+function blankState() {
+  return {
+    income: 0,
+    recurring: [],   // each: { id, name, amount }
+    expenses: [],    // each: { id, name, amount, date }
+    goals: []        // each: { id, name, target, months, saved }
+  };
 }
 
-const FIXED_TOTAL = sumObject(FIXED);   // 124,000
-const SUBS_TOTAL  = sumObject(SUBS);    // 7,349
-
-// "expenses" is the ONLY thing that changes as you use the app.
-// It's a list. Each item looks like: { name, amount, cat, date }
-// We load whatever was saved last time, or start with an empty list.
-let expenses = load();
-
-// -------- PART 2: SAVING & LOADING --------
-// localStorage is the browser's little notebook. We write our list to it
-// as text, and read it back next time the page opens.
+// localStorage = the browser's notebook. We store our whole state as text.
 function save() {
-  localStorage.setItem("finance_expenses", JSON.stringify(expenses));
+  localStorage.setItem("finance_v2", JSON.stringify(state));
 }
 function load() {
-  const saved = localStorage.getItem("finance_expenses");
-  return saved ? JSON.parse(saved) : [];   // if nothing saved, empty list
+  const saved = localStorage.getItem("finance_v2");
+  return saved ? JSON.parse(saved) : blankState();
 }
 
-// -------- PART 3: THE MATH --------
-function totalSpent() {
-  let total = 0;
-  for (const e of expenses) total += e.amount;
-  return total;
+// A simple unique id so we can delete the right row.
+function newId() { return Date.now() + "_" + Math.random().toString(36).slice(2, 7); }
+
+// -------- PART 2: HELPERS --------
+function fmt(n) { return Math.round(n).toLocaleString("en-US"); }
+
+function sumAmounts(list) {
+  let t = 0;
+  for (const item of list) t += Number(item.amount) || 0;
+  return t;
 }
 
-// Format a number like 85651 -> "85,651"
-function fmt(n) {
-  return Math.round(n).toLocaleString("en-US");
-}
-
-// -------- PART 4: DRAWING THE SCREEN --------
-// This function reads the current data and updates everything you see.
-// We call it whenever something changes.
+// -------- PART 3: DRAW THE SCREEN --------
 function render() {
-  const spent = totalSpent();
-  const left = INCOME - FIXED_TOTAL - SUBS_TOTAL - spent;
+  const recurringTotal = sumAmounts(state.recurring);
+  const expenseTotal   = sumAmounts(state.expenses);
+  const left = state.income - recurringTotal - expenseTotal;
 
-  // The big hero number
+  // ---- Hero number ----
   const big = document.getElementById("leftBig");
-  big.textContent = fmt(left);
-  // Colour it based on how much is left
-  big.className = "big " + (left < 0 ? "bad" : left < 20000 ? "warn" : "good");
-
-  // A little context line under it
   const note = document.getElementById("leftNote");
-  if (left < 0)        note.textContent = "You're over by " + fmt(-left) + ". Past the disposable line.";
-  else if (left < 20000) note.textContent = "Getting tight — " + fmt(left) + " of your 85.6k disposable.";
-  else                 note.textContent = "of ~85,651 disposable (after fixed + subs).";
-
-  // The math breakdown
-  document.getElementById("mIncome").textContent = fmt(INCOME);
-  document.getElementById("mFixed").textContent  = "−" + fmt(FIXED_TOTAL);
-  document.getElementById("mSubs").textContent   = "−" + fmt(SUBS_TOTAL);
-  document.getElementById("mSpent").textContent  = "−" + fmt(spent);
-  const mLeft = document.getElementById("mLeft");
-  mLeft.textContent = fmt(left);
-  mLeft.className = "amt " + (left < 0 ? "neg" : "pos");
-
-  // The list of expenses
-  const list = document.getElementById("expList");
-  if (expenses.length === 0) {
-    list.innerHTML = '<div class="empty">Nothing logged yet.</div>';
+  if (state.income === 0) {
+    big.textContent = "—";
+    big.className = "big good";
+    note.textContent = "Set your income and recurring costs below.";
   } else {
-    list.innerHTML = "";
-    // Show newest first
-    [...expenses].reverse().forEach((e) => {
-      const realIndex = expenses.indexOf(e);
-      const div = document.createElement("div");
-      div.className = "expense";
-      div.innerHTML =
-        '<div><div>' + e.name + '</div><div class="meta">' + e.cat + ' · ' + e.date + '</div></div>' +
-        '<div><span class="amt">' + fmt(e.amount) + '</span> ' +
-        '<span class="x" data-i="' + realIndex + '">✕</span></div>';
-      list.appendChild(div);
-    });
-    // Wire up each ✕ delete button
-    list.querySelectorAll(".x").forEach((x) => {
-      x.onclick = () => removeExpense(parseInt(x.dataset.i));
-    });
+    big.textContent = fmt(left);
+    big.className = "big " + (left < 0 ? "bad" : left < state.income * 0.1 ? "warn" : "good");
+    if (left < 0)      note.textContent = "Over by " + fmt(-left) + " this month.";
+    else               note.textContent = "After " + fmt(recurringTotal) + " recurring + " + fmt(expenseTotal) + " spent.";
   }
+
+  // ---- Subline ----
+  document.getElementById("subline").textContent =
+    state.income === 0 ? "Add your income to begin"
+                       : "Income " + fmt(state.income) + "/mo";
+
+  // ---- Income input shows current value ----
+  const incInput = document.getElementById("incomeInput");
+  if (document.activeElement !== incInput) {
+    incInput.value = state.income || "";
+  }
+
+  // ---- Recurring list ----
+  drawList("recurringList", state.recurring, "No recurring costs yet.", (item) =>
+    rowHTML(item.id, item.name, "−" + fmt(item.amount), "neg", "recurring")
+  );
+
+  // ---- Expense list (newest first) ----
+  drawList("expenseList", [...state.expenses].reverse(), "Nothing logged yet.", (item) =>
+    rowHTML(item.id, item.name, "−" + fmt(item.amount), "neg", "expenses", item.date)
+  );
+
+  // ---- Recurring total row ----
+  if (state.recurring.length) {
+    document.getElementById("recurringList").innerHTML +=
+      '<div class="row total"><span>Total recurring</span><span class="amt neg">−' + fmt(recurringTotal) + '</span></div>';
+  }
+
+  // ---- Goals ----
+  drawGoals();
+
+  save();
 }
 
-// -------- PART 5: THE BUTTONS (actions that change data) --------
+// Build one row's HTML
+function rowHTML(id, name, amountText, cls, listName, meta) {
+  const metaHTML = meta ? '<span class="meta">' + meta + '</span>' : '';
+  return '<div class="row">' +
+           '<div class="left-part"><span class="name">' + escapeHTML(name) + '</span>' + metaHTML + '</div>' +
+           '<div class="right-part"><span class="amt ' + cls + '">' + amountText + '</span>' +
+           '<span class="x" data-list="' + listName + '" data-id="' + id + '">✕</span></div>' +
+         '</div>';
+}
+
+// Generic list drawer
+function drawList(elId, list, emptyMsg, rowFn) {
+  const el = document.getElementById(elId);
+  if (!list.length) { el.innerHTML = '<div class="empty">' + emptyMsg + '</div>'; return; }
+  el.innerHTML = list.map(rowFn).join("");
+  wireDeletes(el);
+}
+
+function drawGoals() {
+  const el = document.getElementById("goalList");
+  if (!state.goals.length) { el.innerHTML = '<div class="empty">No goals yet.</div>'; return; }
+  el.innerHTML = state.goals.map((g) => {
+    const pct = g.target > 0 ? Math.min(100, (g.saved / g.target) * 100) : 0;
+    const perMonth = g.months > 0 ? g.target / g.months : 0;
+    const remaining = Math.max(0, g.target - g.saved);
+    return '<div class="goal">' +
+      '<div class="goal-head"><span class="gname">' + escapeHTML(g.name) + '</span>' +
+        '<span class="x" data-list="goals" data-id="' + g.id + '">✕</span></div>' +
+      '<div class="bar-wrap"><div class="bar" style="width:' + pct + '%"></div></div>' +
+      '<div class="goal-stat"><span>' + fmt(g.saved) + ' / ' + fmt(g.target) + '</span>' +
+        '<span>' + Math.round(pct) + '%</span></div>' +
+      '<div class="goal-install">Set aside ' + fmt(perMonth) + '/mo over ' + g.months + ' months · ' + fmt(remaining) + ' to go</div>' +
+      '<div class="goal-actions">' +
+        '<input type="number" placeholder="Add saved" min="0" inputmode="numeric" id="gadd_' + g.id + '">' +
+        '<button data-add="' + g.id + '">Add</button>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+
+  // wire goal deletes
+  wireDeletes(el);
+  // wire "add saved" buttons
+  el.querySelectorAll("button[data-add]").forEach((b) => {
+    b.onclick = () => {
+      const id = b.dataset.add;
+      const inp = document.getElementById("gadd_" + id);
+      const amt = parseFloat(inp.value);
+      if (isNaN(amt) || amt <= 0) return;
+      const goal = state.goals.find((g) => g.id === id);
+      if (goal) { goal.saved = (Number(goal.saved) || 0) + amt; render(); }
+    };
+  });
+}
+
+function wireDeletes(scope) {
+  scope.querySelectorAll(".x[data-id]").forEach((x) => {
+    x.onclick = () => removeItem(x.dataset.list, x.dataset.id);
+  });
+}
+
+// Stop weird characters in names from breaking the page
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// -------- PART 4: ACTIONS --------
+function saveIncome() {
+  const v = parseFloat(document.getElementById("incomeInput").value);
+  state.income = isNaN(v) ? 0 : v;
+  render();
+}
+
+function addRecurring() {
+  const name = document.getElementById("recName").value.trim();
+  const amt  = parseFloat(document.getElementById("recAmt").value);
+  if (!name || isNaN(amt) || amt <= 0) return;
+  state.recurring.push({ id: newId(), name, amount: amt });
+  document.getElementById("recName").value = "";
+  document.getElementById("recAmt").value = "";
+  render();
+  document.getElementById("recName").focus();
+}
+
 function addExpense() {
   const name = document.getElementById("expName").value.trim();
   const amt  = parseFloat(document.getElementById("expAmt").value);
-  const cat  = document.getElementById("expCat").value;
-
-  if (!name || isNaN(amt) || amt <= 0) return;   // ignore empty/bad input
-
-  const today = new Date();
-  const dateStr = today.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-
-  expenses.push({ name, amount: amt, cat, date: dateStr });
-  save();
-  render();
-
-  // clear the form
+  if (!name || isNaN(amt) || amt <= 0) return;
+  const date = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  state.expenses.push({ id: newId(), name, amount: amt, date });
   document.getElementById("expName").value = "";
   document.getElementById("expAmt").value = "";
+  render();
   document.getElementById("expName").focus();
 }
 
-function removeExpense(i) {
-  expenses.splice(i, 1);   // remove 1 item at position i
-  save();
+function addGoal() {
+  const name   = document.getElementById("goalName").value.trim();
+  const target = parseFloat(document.getElementById("goalTarget").value);
+  const months = parseInt(document.getElementById("goalMonths").value);
+  if (!name || isNaN(target) || target <= 0 || isNaN(months) || months < 1) return;
+  state.goals.push({ id: newId(), name, target, months, saved: 0 });
+  document.getElementById("goalName").value = "";
+  document.getElementById("goalTarget").value = "";
+  document.getElementById("goalMonths").value = "";
   render();
 }
 
-function resetMonth() {
-  if (confirm("Clear all logged expenses for a fresh month? (Your fixed numbers stay.)")) {
-    expenses = [];
-    save();
+function removeItem(listName, id) {
+  state[listName] = state[listName].filter((item) => item.id !== id);
+  render();
+}
+
+function resetExpenses() {
+  if (confirm("Clear all logged expenses for a fresh month? (Income, recurring costs, and goals stay.)")) {
+    state.expenses = [];
     render();
   }
 }
 
-// -------- PART 6: HOOK UP THE BUTTONS & DRAW ONCE --------
-document.getElementById("addBtn").onclick = addExpense;
-document.getElementById("resetBtn").onclick = resetMonth;
-// Let Enter key in the amount field also log it
-document.getElementById("expAmt").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") addExpense();
-});
+// -------- PART 5: WIRING --------
+document.getElementById("saveIncome").onclick = saveIncome;
+document.getElementById("addRec").onclick = addRecurring;
+document.getElementById("addExp").onclick = addExpense;
+document.getElementById("addGoal").onclick = addGoal;
+document.getElementById("resetExp").onclick = resetExpenses;
 
-render();   // first draw when the page opens
+// Enter key submits the relevant form
+document.getElementById("incomeInput").addEventListener("keydown", (e) => { if (e.key === "Enter") saveIncome(); });
+document.getElementById("recAmt").addEventListener("keydown", (e) => { if (e.key === "Enter") addRecurring(); });
+document.getElementById("expAmt").addEventListener("keydown", (e) => { if (e.key === "Enter") addExpense(); });
+
+render();   // first draw
 </script>
 </body>
 </html>
