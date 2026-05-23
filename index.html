@@ -3,6 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1db86a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Funance">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <title>Funance</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Spline+Sans+Mono:wght@400;500;600&display=swap');
@@ -358,13 +366,13 @@ function sumLkr(arr){ return (arr||[]).reduce((s,i)=>s+toLkr(i.amount,i.cur||"LK
 
 let saveTimer=null;
 function save(){
-  try{ localStorage.setItem("funance_v1", JSON.stringify(state));
+  try{ localStorage.setItem("ledger_v7", JSON.stringify(state));
     const el=document.getElementById("saveState"); el.textContent="saved"; el.classList.add("flash");
     clearTimeout(saveTimer); saveTimer=setTimeout(()=>el.classList.remove("flash"),600);
   }catch(e){ document.getElementById("saveState").textContent="save failed"; }
 }
 function load(){
-  try{ const r=localStorage.getItem("funance_v1"); if(r) state=JSON.parse(r); }catch(e){}
+  try{ const r=localStorage.getItem("ledger_v7"); if(r) state=JSON.parse(r); }catch(e){}
   if(!state) state=seed();
   state.rates={ ...DEFAULT_RATES, ...(state.rates||{}) };
   if(!state.categories) state.categories=["Food","Transport","Shopping","Bills","Fun","Other"];
