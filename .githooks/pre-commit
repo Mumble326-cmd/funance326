@@ -1,0 +1,12 @@
+#!/bin/sh
+# Bumps the service worker cache version before every commit.
+# Uses only sh + sed + date — all bundled with Git for Windows. No extra runtime needed.
+# Activate once with: git config core.hooksPath .githooks
+
+STAMP=$(date +%Y%m%d%H%M%S)
+NEW="funance-${STAMP}"
+
+sed -i "s/const CACHE = 'funance-[^']*'/const CACHE = '${NEW}'/" sw.js
+
+git add sw.js
+echo "SW cache version: ${NEW}"

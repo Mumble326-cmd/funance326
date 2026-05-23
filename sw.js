@@ -1,7 +1,6 @@
 /* Funance service worker — offline support.
-   When you push an update everyone should get, bump the version below:
-   funance-v1  ->  funance-v2  ->  etc. */
-const CACHE = 'funance-v1';
+   Cache version is bumped automatically by .githooks/pre-commit on every commit. */
+const CACHE = 'funance-20260523232011';
 const ASSETS = [
   './',
   './index.html',
