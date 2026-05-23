@@ -67,10 +67,10 @@
   .hero .cur-pick { background:rgba(255,255,255,0.18); color:#fff; border:1px solid rgba(255,255,255,0.25); }
   .cur-pick { background:var(--panel-2); color:var(--ink); border:1px solid var(--line);
     border-radius:7px; padding:3px 7px; font-family:var(--mono); font-size:11px; cursor:pointer; }
-  .undertop { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
-  .undertop .mini { background:var(--panel); border:1px solid var(--line-soft); border-radius:18px; padding:15px 17px; box-shadow:0 6px 22px -16px rgba(0,0,0,0.6); }
-  .undertop .mini .l { font-size:9px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin-bottom:4px; }
-  .undertop .mini .v { font-family:var(--display); font-size:20px; font-weight:600; }
+  .undertop { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px; }
+  .undertop .mini { background:var(--panel); border:1px solid var(--line-soft); border-radius:18px; padding:15px 14px; box-shadow:0 6px 22px -16px rgba(0,0,0,0.6); }
+  .undertop .mini .l { font-size:9px; text-transform:uppercase; letter-spacing:1.2px; color:var(--muted); margin-bottom:4px; }
+  .undertop .mini .v { font-family:var(--display); font-size:18px; font-weight:600; }
   .undertop .mini .v.cash { color:var(--ink); } .undertop .mini .v.goal { color:var(--gold); }
   .undertop .mini .s { font-size:10px; color:var(--muted); margin-top:2px; }
 
@@ -216,8 +216,9 @@
     <div class="breakdown" id="leftBreak"></div>
   </div>
 
-  <!-- Under-top: spent this month + goals -->
+  <!-- Under-top: income + spent this month + goals -->
   <div class="undertop">
+    <div class="mini"><div class="l">Income this month</div><div class="v" style="color:var(--accent)" id="incomeMini">—</div><div class="s" id="incomeMiniSub">vs 217k baseline</div></div>
     <div class="mini"><div class="l">Spent this month</div><div class="v cash" id="cashMini">—</div><div class="s" id="cashMiniSub">across all categories</div></div>
     <div class="mini"><div class="l">Goals</div><div class="v goal" id="goalMini">—</div><div class="s" id="goalMiniSub">saved toward targets</div></div>
   </div>
@@ -230,6 +231,28 @@
       <button id="tabPie" onclick="showChart('pie')">Breakdown</button>
     </div>
     <div class="chart-view" id="chartView"></div>
+  </div>
+
+  <!-- Income (per month) -->
+  <div class="card">
+    <h2><span>Income <span class="scope-tag">this month</span></span><span class="card-sum" id="incomeSum"></span></h2>
+    <div class="hint">Salary, freelance, one-offs — logged against the month received.</div>
+    <div id="incomeList"></div>
+    <div class="entry-form">
+      <div class="line l-3">
+        <input type="text" id="incName" placeholder="What (Salary)">
+        <input type="number" id="incAmt" placeholder="Amount">
+        <select id="incCur"></select>
+      </div>
+      <div class="line l-2">
+        <select id="incType"></select>
+        <input type="date" id="incDate">
+      </div>
+      <div class="line" style="grid-template-columns:1fr">
+        <select id="incAcct"></select>
+      </div>
+      <button class="full" onclick="addIncome()">Add</button>
+    </div>
   </div>
 
   <!-- Spending (per month) -->
@@ -352,6 +375,7 @@ function ensureMonth(key){
     state.months[key]={ expenses: [] };
   }
   if(!state.months[key].expenses) state.months[key].expenses=[];
+  if(!state.months[key].income) state.months[key].income=[];
   return state.months[key];
 }
 function viewKey(){ return keyFromIndex(viewIndex); }
@@ -416,6 +440,27 @@ function addExpense(){
   render(); save();
 }
 
+function addIncome(){
+  const nameRaw=document.getElementById("incName").value.trim();
+  const amt=parseFloat(document.getElementById("incAmt").value);
+  const cur=document.getElementById("incCur").value;
+  const type=document.getElementById("incType").value;
+  const acctId=document.getElementById("incAcct").value;
+  const dStr=document.getElementById("incDate").value || todayISO();
+  if(isNaN(amt)) return;
+  const name=nameRaw||type||"Income";
+  const d=new Date(dStr+"T12:00:00");
+  const lkr=toLkr(amt,cur);
+  let acctAdd=0;
+  if(acctId){ const a=state.liquids.find(x=>x.id===acctId);
+    if(a){ acctAdd=fromLkr(lkr, a.cur||"LKR"); a.amount=+(a.amount+acctAdd).toFixed(2); } }
+  const mk=keyOf(d); ensureMonth(mk);
+  if(!state.months[mk].income) state.months[mk].income=[];
+  state.months[mk].income.push({ id:id(), name, amount:lkr, type, date:d.toISOString(), acctId:acctId||null, acctAdd });
+  document.getElementById("incName").value=""; document.getElementById("incAmt").value="";
+  render(); save();
+}
+
 /* Mutations — continuous */
 function addAccount(){
   const name=document.getElementById("liqName").value.trim();
@@ -444,6 +489,8 @@ function setGoalSaved(gid,val){ const g=state.goals.find(x=>x.id===gid); if(g){ 
 function removeMonth(field,rid){ const m=viewMonth();
   if(field==="expenses"){ const e=(m.expenses||[]).find(x=>x.id===rid);
     if(e && e.acctId && e.acctDeduct){ const a=state.liquids.find(x=>x.id===e.acctId); if(a) a.amount=+(a.amount+e.acctDeduct).toFixed(2); } }
+  if(field==="income"){ const e=(m.income||[]).find(x=>x.id===rid);
+    if(e && e.acctId && e.acctAdd){ const a=state.liquids.find(x=>x.id===e.acctId); if(a) a.amount=+(a.amount-e.acctAdd).toFixed(2); } }
   m[field]=m[field].filter(i=>i.id!==rid); render(); save(); }
 function remove(key,rid){ state[key]=state[key].filter(i=>i.id!==rid); render(); save(); }
 
@@ -507,14 +554,20 @@ function render(){
   // currency dropdowns
   const vc=document.getElementById("viewCur");
   vc.innerHTML=""; curList().forEach(c=>vc.add(new Option(c,c))); vc.value=cur;
-  ["liqCur","expCur","goalCur"].forEach(idd=>fillSelect(document.getElementById(idd),curList(),"LKR"));
+  ["liqCur","expCur","goalCur","incCur"].forEach(idd=>fillSelect(document.getElementById(idd),curList(),"LKR"));
   const ea=document.getElementById("expAcct");
   if(ea){ const prev=ea.value;
     ea.innerHTML='<option value="">No account</option>'+state.liquids.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join("");
     if(prev && state.liquids.some(a=>a.id===prev)) ea.value=prev; }
+  const ia=document.getElementById("incAcct");
+  if(ia){ const prev=ia.value;
+    ia.innerHTML='<option value="">No account</option>'+state.liquids.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join("");
+    if(prev && state.liquids.some(a=>a.id===prev)) ia.value=prev; }
   fillSelect(document.getElementById("expType"),EXPENSE_TYPES);
   fillSelect(document.getElementById("expCat"),state.categories);
+  fillSelect(document.getElementById("incType"),INCOME_TYPES);
   const dEl=document.getElementById("expDate"); if(dEl&&!dEl.value) dEl.value=todayISO();
+  const idEl=document.getElementById("incDate"); if(idEl&&!idEl.value) idEl.value=todayISO();
 
   // rates editor
   document.getElementById("ratesBox").innerHTML =
@@ -531,6 +584,7 @@ function render(){
       <span class="rm" onclick="removeCat('${esc(c)}')">✕</span></span>`).join("")||`<span class="empty">No categories.</span>`;
 
   // per-month lists
+  drawIncome(m);
   drawExpenses(m);
 
   // continuous
@@ -546,7 +600,18 @@ function render(){
   document.getElementById("leftBreak").innerHTML =
     acctCount ? `across ${acctCount} account${acctCount>1?"s":""}` : `add an account below to begin`;
 
-  // under-top: spent this month + goals
+  // under-top: income + spent this month + goals
+  const earned=(m.income||[]).reduce((s,e)=>s+e.amount,0);
+  document.getElementById("incomeMini").textContent=fmt(earned,cur);
+  const baseLkr=217000;
+  if(earned>0){
+    const diff=earned-baseLkr;
+    document.getElementById("incomeMiniSub").textContent =
+      Math.abs(diff)<1 ? "= 217k baseline"
+      : (diff>0?"+":"−")+fmt(Math.abs(diff),cur).replace(cur+" ","")+" vs base";
+  } else {
+    document.getElementById("incomeMiniSub").textContent="vs 217k baseline";
+  }
   document.getElementById("cashMini").textContent=fmt(spent,cur);
   document.getElementById("cashMiniSub").textContent = `across all categories`;
   const gSaved=state.goals.reduce((s,g)=>s+(g.saved||0),0);
@@ -569,6 +634,22 @@ function drawMonthEntries(elId,arr,field,dir){
     return `<div class="entry-row"><span class="nm">${esc(i.name)} ${meta}</span>
       <span class="${cls}">${pre}${fmt(lkr,state.viewCur)}</span>
       <span class="x" onclick="removeMonth('${field}','${i.id}')">✕</span></div>`;
+  }).join("");
+}
+
+function drawIncome(m){
+  const el=document.getElementById("incomeList"); const cur=state.viewCur;
+  const inc=m.income||[];
+  document.getElementById("incomeSum").textContent = inc.length?fmt(inc.reduce((s,e)=>s+e.amount,0),cur):"";
+  if(!inc.length){ el.innerHTML=`<div class="empty">No income logged this month yet.</div>`; return; }
+  el.innerHTML=inc.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(e=>{
+    const day=new Date(e.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short"});
+    const acct=e.acctId?((state.liquids.find(a=>a.id===e.acctId)||{}).name||""):"";
+    const bits=[]; if(e.type) bits.push(esc(e.type)); bits.push(day); if(acct) bits.push("→ "+esc(acct));
+    const meta=`<span class="meta">${bits.join(" · ")}</span>`;
+    return `<div class="entry-row"><span class="nm">${esc(e.name)} ${meta}</span>
+      <span class="amt in">+${fmt(e.amount,cur)}</span>
+      <span class="x" onclick="removeMonth('income','${e.id}')">✕</span></div>`;
   }).join("");
 }
 
