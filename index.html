@@ -245,8 +245,9 @@
       </div>
       <div class="line l-2">
         <input type="date" id="expDate">
-        <button onclick="addExpense()">Add</button>
+        <select id="expAcct"></select>
       </div>
+      <button class="full" onclick="addExpense()">Add</button>
     </div>
   </div>
 
@@ -357,13 +358,13 @@ function sumLkr(arr){ return (arr||[]).reduce((s,i)=>s+toLkr(i.amount,i.cur||"LK
 
 let saveTimer=null;
 function save(){
-  try{ localStorage.setItem("funance_gh", JSON.stringify(state));
+  try{ localStorage.setItem("funance_v1", JSON.stringify(state));
     const el=document.getElementById("saveState"); el.textContent="saved"; el.classList.add("flash");
     clearTimeout(saveTimer); saveTimer=setTimeout(()=>el.classList.remove("flash"),600);
   }catch(e){ document.getElementById("saveState").textContent="save failed"; }
 }
 function load(){
-  try{ const r=localStorage.getItem("funance_gh"); if(r) state=JSON.parse(r); }catch(e){}
+  try{ const r=localStorage.getItem("funance_v1"); if(r) state=JSON.parse(r); }catch(e){}
   if(!state) state=seed();
   state.rates={ ...DEFAULT_RATES, ...(state.rates||{}) };
   if(!state.categories) state.categories=["Food","Transport","Shopping","Bills","Fun","Other"];
@@ -391,14 +392,18 @@ function addExpense(){
   const cur=document.getElementById("expCur").value;
   const cat=document.getElementById("expCat").value;
   const type=document.getElementById("expType").value;
+  const acctId=document.getElementById("expAcct").value;
   const dStr=document.getElementById("expDate").value || todayISO();
   if(isNaN(amt)) return;
   const isRough=spendMode==="rough";
   const name=nameRaw||(isRough?"Rough estimate":"Spend");
   const d=new Date(dStr+"T12:00:00");
-  // expense belongs to the month it's dated in
+  const lkr=toLkr(amt,cur);
+  let acctDeduct=0;
+  if(acctId){ const a=state.liquids.find(x=>x.id===acctId);
+    if(a){ acctDeduct=fromLkr(lkr, a.cur||"LKR"); a.amount=+(a.amount-acctDeduct).toFixed(2); } }
   const mk=keyOf(d); ensureMonth(mk);
-  state.months[mk].expenses.push({ id:id(), name, amount:toLkr(amt,cur), category:cat, type, rough:isRough, date:d.toISOString() });
+  state.months[mk].expenses.push({ id:id(), name, amount:lkr, category:cat, type, rough:isRough, date:d.toISOString(), acctId:acctId||null, acctDeduct });
   document.getElementById("expName").value=""; document.getElementById("expAmt").value="";
   render(); save();
 }
@@ -428,7 +433,10 @@ function addGoal(){
 function setGoalSaved(gid,val){ const g=state.goals.find(x=>x.id===gid); if(g){ g.saved=parseFloat(val)||0; render(); save(); } }
 
 /* removal — month-scoped or continuous */
-function removeMonth(field,rid){ const m=viewMonth(); m[field]=m[field].filter(i=>i.id!==rid); if(field!=="expenses") render(); save(); }
+function removeMonth(field,rid){ const m=viewMonth();
+  if(field==="expenses"){ const e=(m.expenses||[]).find(x=>x.id===rid);
+    if(e && e.acctId && e.acctDeduct){ const a=state.liquids.find(x=>x.id===e.acctId); if(a) a.amount=+(a.amount+e.acctDeduct).toFixed(2); } }
+  m[field]=m[field].filter(i=>i.id!==rid); render(); save(); }
 function remove(key,rid){ state[key]=state[key].filter(i=>i.id!==rid); render(); save(); }
 
 function addCat(){ const name=document.getElementById("catName").value.trim();
@@ -492,6 +500,10 @@ function render(){
   const vc=document.getElementById("viewCur");
   vc.innerHTML=""; curList().forEach(c=>vc.add(new Option(c,c))); vc.value=cur;
   ["liqCur","expCur","goalCur"].forEach(idd=>fillSelect(document.getElementById(idd),curList(),"LKR"));
+  const ea=document.getElementById("expAcct");
+  if(ea){ const prev=ea.value;
+    ea.innerHTML='<option value="">No account</option>'+state.liquids.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join("");
+    if(prev && state.liquids.some(a=>a.id===prev)) ea.value=prev; }
   fillSelect(document.getElementById("expType"),EXPENSE_TYPES);
   fillSelect(document.getElementById("expCat"),state.categories);
   const dEl=document.getElementById("expDate"); if(dEl&&!dEl.value) dEl.value=todayISO();
@@ -566,7 +578,9 @@ function drawExpenses(m){
     const rows=items.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(e=>{
       const day=new Date(e.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short"});
       const tag=e.rough?`<span class="rough">~rough</span>`:`${esc(e.name)}`;
-      return `<div class="cat-item"><span>${tag} · ${day}${e.type?` · ${esc(e.type)}`:""}</span>
+      const _acct=e.acctId?((state.liquids.find(a=>a.id===e.acctId)||{}).name||""):"";
+      const acctTag=_acct?(" · "+esc(_acct)):"";
+      return `<div class="cat-item"><span>${tag} · ${day}${e.type?` · ${esc(e.type)}`:""}${acctTag}</span>
         <span class="ci-amt">${fmt(e.amount,cur)} <span class="x" onclick="removeMonth('expenses','${e.id}')">✕</span></span></div>`;
     }).join("");
     return `<div class="cat-block"><div class="cat-head"><div class="left">
