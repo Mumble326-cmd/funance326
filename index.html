@@ -64,6 +64,10 @@
   .hero .big.negative { color:#ffe2dc; }
   .hero .breakdown { font-size:11px; color:rgba(255,255,255,0.78); position:relative; z-index:1; }
   .hero .breakdown b { color:#fff; font-weight:600; }
+  .hero .hero-baseline { font-size:11px; color:rgba(255,255,255,0.65); margin-top:8px; position:relative; z-index:1; display:flex; align-items:center; gap:5px; }
+  .hero .hero-baseline input { background:rgba(255,255,255,0.13); border:1px solid rgba(255,255,255,0.22); color:#fff; border-radius:8px; padding:3px 8px; font-family:var(--mono); font-size:11px; width:90px; }
+  .hero .hero-baseline input:focus { outline:none; background:rgba(255,255,255,0.2); border-color:rgba(255,255,255,0.45); }
+  .other-reveal { display:none; }
   .hero .cur-pick { background:rgba(255,255,255,0.18); color:#fff; border:1px solid rgba(255,255,255,0.25); }
   .cur-pick { background:var(--panel-2); color:var(--ink); border:1px solid var(--line);
     border-radius:7px; padding:3px 7px; font-family:var(--mono); font-size:11px; cursor:pointer; }
@@ -218,6 +222,7 @@
       <select class="cur-pick" id="viewCur" onchange="setCur(this.value)"></select></div>
     <div class="big" id="leftBig">—</div>
     <div class="breakdown" id="leftBreak"></div>
+    <div class="hero-baseline"><span>baseline LKR</span><input type="number" id="baselineInput" onchange="setBaseline(this.value)"></div>
   </div>
 
   <!-- Per-currency balance strip (hidden when user holds only one currency) -->
@@ -246,15 +251,15 @@
     <div class="hint">Salary, freelance, one-offs — logged against the month received.</div>
     <div id="incomeList"></div>
     <div class="entry-form">
-      <div class="line l-3">
-        <input type="text" id="incName" placeholder="What (Salary)">
+      <div class="line l-2">
         <input type="number" id="incAmt" placeholder="Amount">
         <select id="incCur"></select>
       </div>
       <div class="line l-2">
-        <select id="incType"></select>
+        <select id="incType" onchange="toggleOtherInc(this.value)"></select>
         <input type="date" id="incDate">
       </div>
+      <input type="text" id="incOther" class="other-reveal" placeholder="Describe income (e.g. Sold camera gear)">
       <div class="line" style="grid-template-columns:1fr">
         <select id="incAcct"></select>
       </div>
@@ -278,9 +283,10 @@
         <select id="expCur"></select>
       </div>
       <div class="line l-2">
-        <select id="expCat"></select>
+        <select id="expCat" onchange="toggleOtherExp(this.value)"></select>
         <select id="expType"></select>
       </div>
+      <input type="text" id="expOtherCat" class="other-reveal" placeholder="Category name (e.g. Healthcare)">
       <div class="line l-2">
         <input type="date" id="expDate">
         <select id="expAcct"></select>
@@ -420,6 +426,10 @@ function load(){
 
 function stepMonth(dir){ viewIndex+=dir; if(viewIndex>0) viewIndex=0; render(); }
 
+function setBaseline(val){ const v=parseFloat(val); if(!isNaN(v)&&v>=0){ state.incomeBaseline=v; save(); render(); } }
+function toggleOtherInc(v){ document.getElementById("incOther").style.display=v==="Other"?"block":"none"; }
+function toggleOtherExp(v){ document.getElementById("expOtherCat").style.display=v==="Other"?"block":"none"; }
+
 /* Mutations — per-month */
 function setSpendMode(m){ spendMode=m;
   document.getElementById("modeItem").classList.toggle("on",m==="item");
@@ -430,7 +440,8 @@ function addExpense(){
   const nameRaw=document.getElementById("expName").value.trim();
   const amt=parseFloat(document.getElementById("expAmt").value);
   const cur=document.getElementById("expCur").value;
-  const cat=document.getElementById("expCat").value;
+  const catRaw=document.getElementById("expCat").value;
+  const cat=catRaw==="Other"?(document.getElementById("expOtherCat").value.trim()||"Other"):catRaw;
   const type=document.getElementById("expType").value;
   const acctId=document.getElementById("expAcct").value;
   const dStr=document.getElementById("expDate").value || todayISO();
@@ -445,18 +456,18 @@ function addExpense(){
   const mk=keyOf(d); ensureMonth(mk);
   state.months[mk].expenses.push({ id:id(), name, amount:lkr, category:cat, type, rough:isRough, date:d.toISOString(), acctId:acctId||null, acctDeduct });
   document.getElementById("expName").value=""; document.getElementById("expAmt").value="";
+  document.getElementById("expOtherCat").value=""; document.getElementById("expOtherCat").style.display="none";
   render(); save();
 }
 
 function addIncome(){
-  const nameRaw=document.getElementById("incName").value.trim();
   const amt=parseFloat(document.getElementById("incAmt").value);
   const cur=document.getElementById("incCur").value;
   const type=document.getElementById("incType").value;
   const acctId=document.getElementById("incAcct").value;
   const dStr=document.getElementById("incDate").value || todayISO();
   if(isNaN(amt)) return;
-  const name=nameRaw||type||"Income";
+  const name=type==="Other"?(document.getElementById("incOther").value.trim()||"Other"):(type||"Income");
   const d=new Date(dStr+"T12:00:00");
   const lkr=toLkr(amt,cur);
   let acctAdd=0;
@@ -465,7 +476,8 @@ function addIncome(){
   const mk=keyOf(d); ensureMonth(mk);
   if(!state.months[mk].income) state.months[mk].income=[];
   state.months[mk].income.push({ id:id(), name, amount:lkr, type, date:d.toISOString(), acctId:acctId||null, acctAdd });
-  document.getElementById("incName").value=""; document.getElementById("incAmt").value="";
+  document.getElementById("incAmt").value="";
+  document.getElementById("incOther").value=""; document.getElementById("incOther").style.display="none";
   render(); save();
 }
 
@@ -572,8 +584,14 @@ function render(){
     ia.innerHTML='<option value="">No account</option>'+state.liquids.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join("");
     if(prev && state.liquids.some(a=>a.id===prev)) ia.value=prev; }
   fillSelect(document.getElementById("expType"),EXPENSE_TYPES);
-  fillSelect(document.getElementById("expCat"),state.categories);
-  fillSelect(document.getElementById("incType"),INCOME_TYPES);
+  const ecEl=document.getElementById("expCat"); const prevCat=ecEl?ecEl.value:null;
+  fillSelect(ecEl,state.categories);
+  if(prevCat&&state.categories.includes(prevCat)) ecEl.value=prevCat;
+  toggleOtherExp(ecEl?ecEl.value:"");
+  const itEl=document.getElementById("incType"); const prevType=itEl?itEl.value:null;
+  fillSelect(itEl,INCOME_TYPES);
+  if(prevType) itEl.value=prevType;
+  toggleOtherInc(itEl?itEl.value:"");
   const dEl=document.getElementById("expDate"); if(dEl&&!dEl.value) dEl.value=todayISO();
   const idEl=document.getElementById("incDate"); if(idEl&&!idEl.value) idEl.value=todayISO();
 
@@ -607,6 +625,8 @@ function render(){
   const acctCount=state.liquids.length;
   document.getElementById("leftBreak").innerHTML =
     acctCount ? `across ${acctCount} account${acctCount>1?"s":""}` : `add an account below to begin`;
+  const bi=document.getElementById("baselineInput");
+  if(bi&&document.activeElement!==bi) bi.value=state.incomeBaseline;
 
   // per-currency balance strip
   const byCur={};
@@ -669,7 +689,7 @@ function drawIncome(m){
   el.innerHTML=inc.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(e=>{
     const day=new Date(e.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short"});
     const acct=e.acctId?((state.liquids.find(a=>a.id===e.acctId)||{}).name||""):"";
-    const bits=[]; if(e.type) bits.push(esc(e.type)); bits.push(day); if(acct) bits.push("→ "+esc(acct));
+    const bits=[]; bits.push(day); if(acct) bits.push("→ "+esc(acct));
     const meta=`<span class="meta">${bits.join(" · ")}</span>`;
     return `<div class="entry-row"><span class="nm">${esc(e.name)} ${meta}</span>
       <span class="amt in">+${fmt(e.amount,cur)}</span>
