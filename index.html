@@ -759,6 +759,12 @@ function drawPie(){
     </svg><div class="legend">${legend}</div>`;
 }
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
+
 load();
 </script>
 </body>
