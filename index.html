@@ -67,6 +67,17 @@
   .hero .hero-baseline { font-size:11px; color:rgba(255,255,255,0.65); margin-top:8px; position:relative; z-index:1; display:flex; align-items:center; gap:5px; }
   .hero .hero-baseline input { background:rgba(255,255,255,0.13); border:1px solid rgba(255,255,255,0.22); color:#fff; border-radius:8px; padding:3px 8px; font-family:var(--mono); font-size:11px; width:90px; }
   .hero .hero-baseline input:focus { outline:none; background:rgba(255,255,255,0.2); border-color:rgba(255,255,255,0.45); }
+  .mascot-wrap { position:absolute; bottom:14px; right:14px; z-index:2; pointer-events:none;
+    animation:m-float 3s ease-in-out infinite; }
+  .mascot-wrap.m-cheering { animation-duration:1.4s; }
+  @keyframes m-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+  .m-cheeks,.m-sparkle,.m-arm { display:none; }
+  .mascot-wrap.m-thriving .m-cheeks,
+  .mascot-wrap.m-thriving .m-sparkle { display:block; }
+  .mascot-wrap.m-cheering .m-arm { display:block; }
+  .m-eyes rect { animation:m-blink 3.5s ease-in-out infinite; }
+  .m-eyes rect:nth-child(2) { animation-delay:.06s; }
+  @keyframes m-blink { 0%,90%,100%{fill:#0a3d24} 95%{fill:#34c77d} }
   .other-reveal { display:none; }
   .hero .cur-pick { background:rgba(255,255,255,0.18); color:#fff; border:1px solid rgba(255,255,255,0.25); }
   .cur-pick { background:var(--panel-2); color:var(--ink); border:1px solid var(--line);
@@ -223,6 +234,42 @@
     <div class="big" id="leftBig">—</div>
     <div class="breakdown" id="leftBreak"></div>
     <div class="hero-baseline"><span>baseline LKR</span><input type="number" id="baselineInput" onchange="setBaseline(this.value)"></div>
+    <div class="mascot-wrap m-steady" id="mascot"><svg viewBox="-4 -8 72 72" width="60" height="60" aria-hidden="true">
+      <!-- body -->
+      <rect x="14" y="0" width="28" height="7" fill="#34c77d"/>
+      <rect x="7" y="7" width="42" height="7" fill="#34c77d"/>
+      <rect x="0" y="14" width="56" height="7" fill="#34c77d"/>
+      <rect x="0" y="21" width="56" height="7" fill="#34c77d"/>
+      <rect x="0" y="28" width="56" height="7" fill="#34c77d"/>
+      <rect x="0" y="35" width="56" height="7" fill="#34c77d"/>
+      <rect x="7" y="42" width="42" height="7" fill="#34c77d"/>
+      <rect x="21" y="49" width="28" height="7" fill="#34c77d"/>
+      <!-- eyes (blinking) -->
+      <g class="m-eyes">
+        <rect x="14" y="21" width="7" height="7" fill="#0a3d24"/>
+        <rect x="35" y="21" width="7" height="7" fill="#0a3d24"/>
+        <rect x="14" y="35" width="7" height="7" fill="#0a3d24"/>
+        <rect x="35" y="35" width="7" height="7" fill="#0a3d24"/>
+      </g>
+      <!-- smile -->
+      <rect x="21" y="42" width="7" height="7" fill="#0a3d24"/>
+      <rect x="28" y="42" width="7" height="7" fill="#0a3d24"/>
+      <!-- cheeks — thriving -->
+      <g class="m-cheeks">
+        <rect x="7" y="28" width="7" height="7" fill="#f0997b"/>
+        <rect x="42" y="28" width="7" height="7" fill="#f0997b"/>
+      </g>
+      <!-- sparkle — thriving -->
+      <g class="m-sparkle">
+        <rect x="-4" y="7" width="7" height="7" fill="#ffd83d"/>
+      </g>
+      <!-- raised arm — cheering -->
+      <g class="m-arm">
+        <rect x="49" y="-7" width="7" height="7" fill="#34c77d"/>
+        <rect x="49" y="0" width="7" height="7" fill="#34c77d"/>
+        <rect x="56" y="-7" width="7" height="7" fill="#34c77d"/>
+      </g>
+    </svg></div>
   </div>
 
   <!-- Per-currency balance strip (hidden when user holds only one currency) -->
@@ -627,6 +674,9 @@ function render(){
     acctCount ? `across ${acctCount} account${acctCount>1?"s":""}` : `add an account below to begin`;
   const bi=document.getElementById("baselineInput");
   if(bi&&document.activeElement!==bi) bi.value=state.incomeBaseline;
+  const mascot=document.getElementById("mascot");
+  if(mascot){ const ratio=cash/(state.incomeBaseline||217000);
+    mascot.className="mascot-wrap "+(cash<=0||ratio<0.5?"m-cheering":ratio>=1.5?"m-thriving":"m-steady"); }
 
   // per-currency balance strip
   const byCur={};
