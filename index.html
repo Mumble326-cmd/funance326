@@ -406,6 +406,7 @@ function load(){
   if(!state.months) state.months={};
   if(!state.liquids) state.liquids=[];
   if(!state.goals) state.goals=[];
+  if(!state.incomeBaseline) state.incomeBaseline=217000;
   ensureMonth(thisKey());
   render();
 }
@@ -603,14 +604,16 @@ function render(){
   // under-top: income + spent this month + goals
   const earned=(m.income||[]).reduce((s,e)=>s+e.amount,0);
   document.getElementById("incomeMini").textContent=fmt(earned,cur);
-  const baseLkr=217000;
+  const earnedView=fromLkr(earned,cur);
+  const baseView=fromLkr(state.incomeBaseline,cur);
   if(earned>0){
-    const diff=earned-baseLkr;
+    const diff=earnedView-baseView;
+    const p=cur==="LKR"?0:2;
     document.getElementById("incomeMiniSub").textContent =
-      Math.abs(diff)<1 ? "= 217k baseline"
-      : (diff>0?"+":"−")+fmt(Math.abs(diff),cur).replace(cur+" ","")+" vs base";
+      Math.abs(diff)<(cur==="LKR"?1:0.01) ? "= baseline"
+      : (diff>0?"+":"−")+Math.abs(diff).toLocaleString(undefined,{maximumFractionDigits:p})+" vs base";
   } else {
-    document.getElementById("incomeMiniSub").textContent="vs 217k baseline";
+    document.getElementById("incomeMiniSub").textContent="vs baseline";
   }
   document.getElementById("cashMini").textContent=fmt(spent,cur);
   document.getElementById("cashMiniSub").textContent = `across all categories`;
