@@ -893,7 +893,7 @@ function drawPie(){
 }
 
 /* Hero swipe */
-let heroPage=0, _tsX=0;
+let heroPage=0;
 function heroGo(p){
   heroPage=p;
   const track=document.getElementById('heroTrack');
@@ -982,16 +982,6 @@ if ('serviceWorker' in navigator) {
 
 load();
 
-// Hero touch-swipe
-(function(){
-  const card=document.getElementById('heroCard');
-  if(!card) return;
-  card.addEventListener('touchstart',e=>{ _tsX=e.touches[0].clientX; },{passive:true});
-  card.addEventListener('touchend',e=>{
-    const dx=e.changedTouches[0].clientX-_tsX;
-    if(Math.abs(dx)>40) heroGo(dx<0?Math.min(1,heroPage+1):Math.max(0,heroPage-1));
-  },{passive:true});
-})();
 </script>
 </body>
 </html>
