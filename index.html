@@ -81,7 +81,7 @@
   .mascot-row { display:flex; align-items:flex-end; justify-content:space-between; margin-top:16px; position:relative; z-index:2; }
   .mascot-side { display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
   .mascot-wrap { pointer-events:none; animation:m-float 3s ease-in-out infinite; }
-  .mascot-wrap img { width:72px; image-rendering:pixelated; display:block; }
+  .mascot-wrap img { width:92px; image-rendering:pixelated; display:block; }
   .mood-msg { font-size:10px; color:rgba(255,255,255,0.88); line-height:1.4; text-align:right; max-width:130px; }
   .last-upd { font-size:9px; color:rgba(255,255,255,0.5); }
   @keyframes m-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
@@ -107,6 +107,14 @@
     font-size:11px; color:rgba(255,255,255,0.65); }
   .hb-cat-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
   .hb-cat-row .hb-val { font-size:11px; margin-left:auto; }
+
+  /* Currency panel (hero slide 3) */
+  .hb-cur-row { display:flex; justify-content:space-between; align-items:flex-start; padding:9px 0;
+    border-bottom:1px solid rgba(255,255,255,0.1); }
+  .hb-cur-row:last-child { border-bottom:none; }
+  .hb-cur-code { font-size:13px; font-weight:600; color:rgba(255,255,255,0.9); letter-spacing:.5px; }
+  .hb-cur-amt { font-family:var(--display); font-size:22px; font-weight:700; color:#fff; text-align:right; }
+  .hb-cur-accts { font-size:10px; color:rgba(255,255,255,0.5); margin-top:3px; line-height:1.6; }
 
   .other-reveal { display:none; }
   .hero .cur-pick { background:rgba(255,255,255,0.18); color:#fff; border:1px solid rgba(255,255,255,0.25); }
@@ -283,15 +291,19 @@
         <div id="heroBreakContent"></div>
       </div>
 
+      <!-- Slide 2: currency buckets -->
+      <div class="hero-panel">
+        <div class="label" style="margin-bottom:14px"><span>Accounts by currency</span></div>
+        <div id="heroCurContent"></div>
+      </div>
+
     </div>
     <div class="hero-dots">
       <button class="hero-dot active" id="dot0" onclick="heroGo(0)"></button>
       <button class="hero-dot" id="dot1" onclick="heroGo(1)"></button>
+      <button class="hero-dot" id="dot2" onclick="heroGo(2)"></button>
     </div>
   </div>
-
-  <!-- Per-currency balance strip (hidden when user holds only one currency) -->
-  <div class="cur-break" id="curBreak"></div>
 
   <!-- Under-top: income + spent this month + goals -->
   <div class="undertop">
@@ -716,20 +728,7 @@ function render(){
     if(lu) lu.textContent=latest?(days===0?"logged today":days===1?"logged yesterday":"logged "+days+" days ago"):"nothing logged yet";
   }
   drawHeroBreak();
-
-  // per-currency balance strip
-  const byCur={};
-  for(const a of state.liquids){ const c=a.cur||"LKR"; byCur[c]=(byCur[c]||0)+a.amount; }
-  const curEntries=Object.entries(byCur).filter(([,v])=>v>0);
-  const cbEl=document.getElementById("curBreak");
-  if(curEntries.length<=1){ cbEl.style.display="none"; }
-  else{
-    cbEl.style.display="flex";
-    cbEl.innerHTML=curEntries
-      .sort((a,b)=>b[1]-a[1])
-      .map(([c,v])=>`<div class="cur-pill"><span class="cur-code">${esc(c)}</span><span class="cur-amt">${v.toLocaleString(undefined,{maximumFractionDigits:c==="LKR"?0:2})}</span></div>`)
-      .join("");
-  }
+  drawHeroCur();
 
   // under-top: income + spent this month + goals
   const earned=(m.income||[]).reduce((s,e)=>s+e.amount,0);
@@ -899,7 +898,7 @@ function heroGo(p){
   heroPage=p;
   const track=document.getElementById('heroTrack');
   if(track) track.style.transform=`translateX(${-p*100}%)`;
-  ['dot0','dot1'].forEach((id,i)=>{
+  ['dot0','dot1','dot2'].forEach((id,i)=>{
     const d=document.getElementById(id); if(d) d.classList.toggle('active',i===p);
   });
 }
@@ -924,6 +923,28 @@ function drawHeroBreak(){
       const ci=state.categories.indexOf(c); const color=CAT_COLORS[ci>=0?ci%8:0];
       return `<div class="hb-cat-row"><span class="hb-cat-dot" style="background:${color}"></span><span>${esc(c)}</span><span class="hb-val">${fmt(v,cur)}</span></div>`;
     }).join("")+`</div>`:""}`;
+}
+
+function drawHeroCur(){
+  const el=document.getElementById('heroCurContent');
+  if(!el) return;
+  const byCur={};
+  for(const a of state.liquids){
+    const c=a.cur||'LKR';
+    if(!byCur[c]) byCur[c]={total:0,accts:[]};
+    byCur[c].total+=a.amount;
+    byCur[c].accts.push(a);
+  }
+  const entries=Object.entries(byCur).sort((a,b)=>toLkr(b[1].total,b[0])-toLkr(a[1].total,a[0]));
+  if(!entries.length){ el.innerHTML='<div style="color:rgba(255,255,255,0.5);font-size:12px;padding-top:8px">No accounts yet — add one below.</div>'; return; }
+  el.innerHTML=entries.map(([c,{total,accts}])=>{
+    const p=c==='LKR'?0:2;
+    const acctList=accts.map(a=>`${esc(a.name)} ${a.amount.toLocaleString(undefined,{maximumFractionDigits:p})}`).join('<br>');
+    return `<div class="hb-cur-row">
+      <div><div class="hb-cur-code">${esc(c)}</div><div class="hb-cur-accts">${acctList}</div></div>
+      <div class="hb-cur-amt">${total.toLocaleString(undefined,{maximumFractionDigits:p})}</div>
+    </div>`;
+  }).join('');
 }
 
 function importJSON(){
