@@ -117,6 +117,33 @@
   .hb-cur-amt { font-family:var(--display); font-size:22px; font-weight:700; color:#fff; text-align:right; }
   .hb-cur-accts { font-size:10px; color:rgba(255,255,255,0.5); margin-top:3px; line-height:1.6; }
 
+  /* Privacy blur toggle button */
+  #privacyBtn { width:26px; height:26px; padding:0; min-width:0; flex-shrink:0;
+    background:rgba(255,255,255,0.18); border:none; border-radius:50%; cursor:pointer;
+    color:rgba(255,255,255,0.9); display:flex; align-items:center; justify-content:center;
+    transition:background .15s; }
+  #privacyBtn:hover { background:rgba(255,255,255,0.3); }
+
+  /* Base transition so blur fades in AND out smoothly */
+  .hero .big, .hb-val, .hb-cur-amt, .undertop .mini .v, .undertop .mini .s,
+  .card-sum, .entry-row .amt, .ci-amt, .cat-head .ctot,
+  .acct-row .acct-amt, .goal-fig, .pct, #baselineInput { transition:filter .2s; }
+
+  /* Blur all money figures when privacy mode is on */
+  body.privacy-on .hero .big,
+  body.privacy-on .hb-val,
+  body.privacy-on .hb-cur-amt,
+  body.privacy-on .undertop .mini .v,
+  body.privacy-on .undertop .mini .s,
+  body.privacy-on .card-sum,
+  body.privacy-on .entry-row .amt,
+  body.privacy-on .ci-amt,
+  body.privacy-on .cat-head .ctot,
+  body.privacy-on .acct-row .acct-amt,
+  body.privacy-on .goal-fig,
+  body.privacy-on .pct,
+  body.privacy-on #baselineInput { filter:blur(6px); user-select:none; }
+
   .other-reveal { display:none; }
   .hero .cur-pick { background:rgba(255,255,255,0.18); color:#fff; border:1px solid rgba(255,255,255,0.25); }
   .cur-pick { background:var(--panel-2); color:var(--ink); border:1px solid var(--line);
@@ -273,7 +300,10 @@
       <!-- Slide 0: balance + mascot -->
       <div class="hero-panel">
         <div class="label"><span>Total cash now</span>
-          <select class="cur-pick" id="viewCur" onchange="setCur(this.value)"></select></div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button id="privacyBtn" onclick="togglePrivacy()" aria-label="Toggle privacy blur"></button>
+            <select class="cur-pick" id="viewCur" onchange="setCur(this.value)"></select>
+          </div></div>
         <div class="big" id="leftBig">—</div>
         <div class="breakdown" id="leftBreak"></div>
         <div class="hero-baseline"><span>income goal</span><input type="number" id="baselineInput" placeholder="optional" onchange="setBaseline(this.value)"><select id="baselineCurPick" class="cur-pick" onchange="setBaselineCur(this.value)"></select></div>
@@ -435,6 +465,8 @@ const DEFAULT_RATES = { LKR:1, USD:300, BDT:2.5, EUR:325, INR:3.6 };
 const CAT_COLORS = ['var(--c0)','var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--c7)'];
 const INCOME_TYPES = ["Salary","Freelance","Bonus","Reimbursement","Other"];
 const EXPENSE_TYPES = ["One-off","Recurring","Subscription","Cash"];
+const EYE_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EYE_OFF_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
 
 let chartMode='trend', trendMode='spend', spendMode='item';
 let state=null;
@@ -453,6 +485,7 @@ function seed(){
   return {
     viewCur:"LKR",
     baselineCur:"LKR",
+    privacyMode:false,
     currencies:[...DEFAULT_CURRENCIES],
     rates:{ ...DEFAULT_RATES },
     categories:["Food","Transport","Shopping","Bills","Fun","Other"],
@@ -501,14 +534,23 @@ function load(){
   if(!state.goals) state.goals=[];
   if(state.incomeBaseline===undefined) state.incomeBaseline=0;
   if(!state.baselineCur) state.baselineCur="LKR";
+  if(state.privacyMode===undefined) state.privacyMode=false;
   ensureMonth(thisKey());
   render();
+  applyPrivacy();
 }
 
 function stepMonth(dir){ viewIndex+=dir; if(viewIndex>0) viewIndex=0; render(); }
 
 function setBaseline(val){ const v=parseFloat(val); state.incomeBaseline=(isNaN(v)||v<0)?0:toLkr(v,state.baselineCur); save(); render(); }
 function setBaselineCur(val){ state.baselineCur=val; save(); render(); }
+function applyPrivacy(){
+  const on=!!state.privacyMode;
+  document.body.classList.toggle('privacy-on',on);
+  const btn=document.getElementById('privacyBtn');
+  if(btn){ btn.innerHTML=on?EYE_OFF_SVG:EYE_SVG; btn.title=on?'Show figures':'Hide figures'; }
+}
+function togglePrivacy(){ state.privacyMode=!state.privacyMode; applyPrivacy(); save(); }
 function toggleOtherInc(v){ document.getElementById("incOther").style.display=v==="Other"?"block":"none"; }
 function toggleOtherExp(v){ document.getElementById("expOtherCat").style.display=v==="Other"?"block":"none"; }
 
@@ -976,7 +1018,8 @@ function importJSON(){
         if(!state.goals) state.goals=[];
         if(state.incomeBaseline===undefined) state.incomeBaseline=0;
         if(!state.baselineCur) state.baselineCur="LKR";
-        ensureMonth(thisKey()); viewIndex=0; render(); save();
+        if(state.privacyMode===undefined) state.privacyMode=false;
+        ensureMonth(thisKey()); viewIndex=0; render(); save(); applyPrivacy();
       }catch(err){ alert("Import failed: "+err.message); }
     };
     reader.readAsText(file);
