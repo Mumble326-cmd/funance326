@@ -276,7 +276,7 @@
           <select class="cur-pick" id="viewCur" onchange="setCur(this.value)"></select></div>
         <div class="big" id="leftBig">—</div>
         <div class="breakdown" id="leftBreak"></div>
-        <div class="hero-baseline"><span>income goal</span><input type="number" id="baselineInput" placeholder="optional" onchange="setBaseline(this.value)"></div>
+        <div class="hero-baseline"><span>income goal</span><input type="number" id="baselineInput" placeholder="optional" onchange="setBaseline(this.value)"><select id="baselineCurPick" class="cur-pick" onchange="setBaselineCur(this.value)"></select></div>
         <div class="mascot-row">
           <div class="last-upd" id="lastUpd"></div>
           <div class="mascot-side">
@@ -452,12 +452,13 @@ function todayISO(){ return new Date().toISOString().slice(0,10); }
 function seed(){
   return {
     viewCur:"LKR",
+    baselineCur:"LKR",
     currencies:[...DEFAULT_CURRENCIES],
     rates:{ ...DEFAULT_RATES },
     categories:["Food","Transport","Shopping","Bills","Fun","Other"],
-    months:{},          // key -> { income:[], fixed:[], expenses:[] }
-    liquids:[],         // continuous
-    goals:[],           // continuous
+    months:{},
+    liquids:[],
+    goals:[],
   };
 }
 
@@ -499,13 +500,15 @@ function load(){
   if(!state.liquids) state.liquids=[];
   if(!state.goals) state.goals=[];
   if(state.incomeBaseline===undefined) state.incomeBaseline=0;
+  if(!state.baselineCur) state.baselineCur="LKR";
   ensureMonth(thisKey());
   render();
 }
 
 function stepMonth(dir){ viewIndex+=dir; if(viewIndex>0) viewIndex=0; render(); }
 
-function setBaseline(val){ const v=parseFloat(val); state.incomeBaseline=(isNaN(v)||v<0)?0:v; save(); render(); }
+function setBaseline(val){ const v=parseFloat(val); state.incomeBaseline=(isNaN(v)||v<0)?0:toLkr(v,state.baselineCur); save(); render(); }
+function setBaselineCur(val){ state.baselineCur=val; save(); render(); }
 function toggleOtherInc(v){ document.getElementById("incOther").style.display=v==="Other"?"block":"none"; }
 function toggleOtherExp(v){ document.getElementById("expOtherCat").style.display=v==="Other"?"block":"none"; }
 
@@ -704,8 +707,13 @@ function render(){
   const acctCount=state.liquids.length;
   document.getElementById("leftBreak").innerHTML =
     acctCount ? `across ${acctCount} account${acctCount>1?"s":""}` : `add an account below to begin`;
+  fillSelect(document.getElementById("baselineCurPick"), curList(), state.baselineCur);
   const bi=document.getElementById("baselineInput");
-  if(bi&&document.activeElement!==bi) bi.value=state.incomeBaseline||"";
+  if(bi&&document.activeElement!==bi){
+    bi.value=state.incomeBaseline>0
+      ? +fromLkr(state.incomeBaseline,state.baselineCur).toFixed(state.baselineCur==="LKR"?0:2)
+      : "";
+  }
 
   // Mascot mood — single image, only glow + text change
   { let latest=null;
@@ -967,6 +975,7 @@ function importJSON(){
         if(!state.liquids) state.liquids=[];
         if(!state.goals) state.goals=[];
         if(state.incomeBaseline===undefined) state.incomeBaseline=0;
+        if(!state.baselineCur) state.baselineCur="LKR";
         ensureMonth(thisKey()); viewIndex=0; render(); save();
       }catch(err){ alert("Import failed: "+err.message); }
     };
