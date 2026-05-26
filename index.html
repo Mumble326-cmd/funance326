@@ -962,18 +962,16 @@ function drawPie(){
   const byCat={}; (m.expenses||[]).forEach(e=>{ byCat[e.category]=(byCat[e.category]||0)+e.amount; });
   const entries=Object.entries(byCat).filter(([,v])=>v>0);
   if(!entries.length){ view.innerHTML=`<div class="empty" style="text-align:center;padding:40px 0">No spending this month yet.</div>`; return; }
-  const rs=getComputedStyle(document.documentElement);
-  const rv=v=>v.startsWith('var(')?rs.getPropertyValue(v.slice(4,-1).trim()).trim():v;
   const total=entries.reduce((s,[,v])=>s+v,0); const cx=100,cy=100,r=80; let ang=-Math.PI/2,paths="",legend="";
   entries.forEach(([cat,v])=>{ const frac=v/total,a2=ang+frac*Math.PI*2;
     const x1=cx+r*Math.cos(ang),y1=cy+r*Math.sin(ang),x2=cx+r*Math.cos(a2),y2=cy+r*Math.sin(a2);
-    const large=frac>0.5?1:0; const ci=state.categories.indexOf(cat); const color=rv(CAT_COLORS[(ci>=0?ci:0)%8]);
-    paths+=`<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z" fill="${color}" stroke="${rv('var(--bg)')}" stroke-width="2"/>`;
+    const large=frac>0.5?1:0; const ci=state.categories.indexOf(cat); const color=CAT_COLORS[(ci>=0?ci:0)%8];
+    paths+=`<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z" fill="${color}" stroke="var(--bg)" stroke-width="2"/>`;
     legend+=`<div class="legend-item"><span class="sw" style="background:${color}"></span>${esc(cat)}<span style="color:var(--ink);margin-left:4px">${(frac*100).toFixed(0)}%</span></div>`; ang=a2; });
   view.innerHTML=`<svg viewBox="0 0 200 200" width="100%" style="max-height:220px">${paths}
-    <circle cx="${cx}" cy="${cy}" r="42" fill="${rv('var(--panel)')}"/>
-    <text x="${cx}" y="${cy-4}" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="${rv('var(--muted)')}">${shortLabel(viewKey())} spend</text>
-    <text x="${cx}" y="${cy+12}" text-anchor="middle" font-family="var(--display)" font-size="15" fill="${rv('var(--ink)')}">${Math.round(fromLkr(total,cur)/1000)}k</text>
+    <circle cx="${cx}" cy="${cy}" r="42" fill="var(--panel)"/>
+    <text x="${cx}" y="${cy-4}" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="var(--muted)">${shortLabel(viewKey())} spend</text>
+    <text x="${cx}" y="${cy+12}" text-anchor="middle" font-family="var(--display)" font-size="15" fill="var(--ink)">${Math.round(fromLkr(total,cur)/1000)}k</text>
     </svg><div class="legend">${legend}</div>`;
 }
 
