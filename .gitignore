@@ -1,0 +1,12 @@
+# Local backups and editor artifacts
+index-backup*.html
+*.swp
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE/editor directories
+.vscode/
+.idea/

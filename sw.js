@@ -1,6 +1,6 @@
 /* Funance service worker — offline support.
    Cache version is bumped automatically by .githooks/pre-commit on every commit. */
-const CACHE = 'funance-20260526172648';
+const CACHE = 'funance-20260526173631';
 const ASSETS = [
   './',
   './index.html',
@@ -28,6 +28,7 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
     fetch(e.request)
       .then(res => {
