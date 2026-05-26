@@ -193,14 +193,18 @@
 
   .cat-block { padding:10px 2px; border-bottom:1px solid var(--line-soft); }
   .cat-block:last-child { border-bottom:none; }
-  .cat-head { display:flex; align-items:center; gap:8px; justify-content:space-between; }
+  .cat-head { display:flex; align-items:center; gap:8px; justify-content:space-between; cursor:pointer; user-select:none; }
   .cat-head .left { display:flex; align-items:center; gap:8px; }
-  .cat-head .dot { width:9px; height:9px; border-radius:50%; }
+  .cat-head .dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
   .cat-head .cname { font-weight:500; }
   .cat-head .ctot { font-variant-numeric:tabular-nums; color:var(--bad); }
-  .cat-items { margin:6px 0 0 17px; }
-  .cat-item { display:flex; justify-content:space-between; gap:8px; font-size:12px; color:var(--muted); padding:3px 0; }
-  .cat-item .ci-amt { font-variant-numeric:tabular-nums; }
+  .cat-head .chev { font-size:10px; color:var(--muted); margin-left:4px; transition:transform .2s; }
+  .cat-head .chev.open { transform:rotate(90deg); }
+  .cat-items { margin:6px 0 2px 17px; display:none; }
+  .cat-items.open { display:block; }
+  .cat-item { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12px; color:var(--muted); padding:4px 0; border-bottom:1px solid var(--line-soft); }
+  .cat-item:last-child { border-bottom:none; }
+  .cat-item .ci-amt { font-variant-numeric:tabular-nums; white-space:nowrap; display:flex; align-items:center; gap:6px; }
   .cat-item .rough { color:var(--gold); }
 
   .goal { padding:12px 2px; border-bottom:1px solid var(--line-soft); } .goal:last-child { border-bottom:none; }
@@ -557,6 +561,13 @@ function applyPrivacy(){
   if(btn){ btn.innerHTML=on?EYE_OFF_SVG:EYE_SVG; btn.title=on?'Show figures':'Hide figures'; }
 }
 function togglePrivacy(){ state.privacyMode=!state.privacyMode; applyPrivacy(); save(); }
+function toggleCat(id){
+  const items=document.getElementById('ci-'+id);
+  const chev=document.getElementById('ch-'+id);
+  if(!items) return;
+  items.classList.toggle('open');
+  if(chev) chev.classList.toggle('open');
+}
 function toggleAcct(id){
   const ex=state.acctExclude; const i=ex.indexOf(id);
   if(i===-1) ex.push(id); else ex.splice(i,1);
@@ -861,17 +872,25 @@ function drawExpenses(m){
   el.innerHTML=ordered.map(cat=>{
     const items=groups[cat]; const tot=items.reduce((s,e)=>s+e.amount,0);
     const ci=state.categories.indexOf(cat); const color=ci>=0?CAT_COLORS[ci%8]:'var(--muted)';
+    const cid=btoa(cat).replace(/[^a-z0-9]/gi,'');
+    const count=items.length;
     const rows=items.sort((a,b)=>new Date(b.date)-new Date(a.date)).map(e=>{
       const day=new Date(e.date).toLocaleDateString("en-GB",{day:"2-digit",month:"short"});
-      const tag=e.rough?`<span class="rough">~rough</span>`:`${esc(e.name)}`;
-      const _acct=e.acctId?((state.liquids.find(a=>a.id===e.acctId)||{}).name||""):"";
-      const acctTag=_acct?(" · "+esc(_acct)):"";
-      return `<div class="cat-item"><span>${tag} · ${day}${e.type?` · ${esc(e.type)}`:""}${acctTag}</span>
-        <span class="ci-amt">${fmt(e.amount,cur)} <span class="x" onclick="removeMonth('expenses','${e.id}')">✕</span></span></div>`;
+      const label=e.rough?`<span class="rough">~</span> ${esc(e.name)||'rough estimate'}`:esc(e.name);
+      return `<div class="cat-item"><span>${label} <span style="color:var(--muted);font-size:10px">${day}</span></span>
+        <span class="ci-amt">${fmt(e.amount,cur)}<span class="x" onclick="removeMonth('expenses','${e.id}')">✕</span></span></div>`;
     }).join("");
-    return `<div class="cat-block"><div class="cat-head"><div class="left">
-      <span class="dot" style="background:${color}"></span><span class="cname">${esc(cat)}</span></div>
-      <span class="ctot">−${fmt(tot,cur)}</span></div><div class="cat-items">${rows}</div></div>`;
+    return `<div class="cat-block">
+      <div class="cat-head" onclick="toggleCat('${cid}')"><div class="left">
+        <span class="dot" style="background:${color}"></span>
+        <span class="cname">${esc(cat)}</span>
+        <span style="font-size:10px;color:var(--muted)">${count} item${count>1?'s':''}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="ctot">−${fmt(tot,cur)}</span>
+        <span class="chev" id="ch-${cid}">▶</span>
+      </div></div>
+      <div class="cat-items" id="ci-${cid}">${rows}</div></div>`;
   }).join("");
 }
 
