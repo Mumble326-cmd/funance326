@@ -128,7 +128,7 @@
   #privacyBtn:hover { background:rgba(255,255,255,0.3); }
 
   /* Base transition so blur fades in AND out smoothly */
-  .hero .big, .hb-val, .hb-cur-amt, .undertop .mini .v, .undertop .mini .s,
+  .hero .big, .hb-val, .hb-cur-amt, .hb-cur-acct-amt, .undertop .mini .v, .undertop .mini .s,
   .card-sum, .entry-row .amt, .ci-amt, .cat-head .ctot,
   .acct-row .acct-amt, .goal-fig, .pct, #baselineInput { transition:filter .2s; }
 
@@ -136,6 +136,7 @@
   body.privacy-on .hero .big { filter:blur(12px); user-select:none; }
   body.privacy-on .hb-val,
   body.privacy-on .hb-cur-amt,
+  body.privacy-on .hb-cur-acct-amt,
   body.privacy-on .undertop .mini .v,
   body.privacy-on .undertop .mini .s,
   body.privacy-on .card-sum,
@@ -1023,7 +1024,7 @@ function drawHeroCur(){
   if(!entries.length){ el.innerHTML='<div style="color:rgba(255,255,255,0.5);font-size:12px;padding-top:8px">No accounts yet — add one below.</div>'; return; }
   el.innerHTML=entries.map(([c,{total,accts}])=>{
     const p=c==='LKR'?0:2;
-    const acctList=accts.map(a=>`${esc(a.name)} ${a.amount.toLocaleString(undefined,{maximumFractionDigits:p})}`).join('<br>');
+    const acctList=accts.map(a=>`${esc(a.name)} <span class="hb-cur-acct-amt">${a.amount.toLocaleString(undefined,{maximumFractionDigits:p})}</span>`).join('<br>');
     return `<div class="hb-cur-row">
       <div><div class="hb-cur-code">${esc(c)}</div><div class="hb-cur-accts">${acctList}</div></div>
       <div class="hb-cur-amt">${total.toLocaleString(undefined,{maximumFractionDigits:p})}</div>
