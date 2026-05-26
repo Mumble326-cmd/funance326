@@ -1,6 +1,6 @@
 /* Funance service worker — offline support.
    Cache version is bumped automatically by .githooks/pre-commit on every commit. */
-const CACHE = 'funance-20260526075646';
+const CACHE = 'funance-20260526080213';
 const ASSETS = [
   './',
   './index.html',
