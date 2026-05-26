@@ -81,9 +81,6 @@
   /* Mascot row (in-flow, inside first panel) */
   .mascot-row { display:flex; align-items:flex-end; justify-content:space-between; margin-top:8px; position:relative; z-index:2; }
   .mascot-side { display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
-  .mascot-left { display:flex; flex-direction:column; gap:6px; }
-  .acct-pick { background:rgba(255,255,255,0.13); border:1px solid rgba(255,255,255,0.22); color:#fff; border-radius:8px; padding:4px 10px; font-family:var(--mono); font-size:11px; cursor:pointer; }
-  .acct-pick:focus { outline:none; background:rgba(255,255,255,0.2); border-color:rgba(255,255,255,0.45); }
   .mascot-wrap { pointer-events:none; animation:m-float 3s ease-in-out infinite; }
   .mascot-wrap img { width:100px; image-rendering:pixelated; display:block; }
   .mood-msg { font-size:10px; color:rgba(255,255,255,0.88); line-height:1.4; text-align:right; max-width:100px; }
@@ -128,7 +125,7 @@
   #privacyBtn:hover { background:rgba(255,255,255,0.3); }
 
   /* Base transition so blur fades in AND out smoothly */
-  .hero .big, .hb-val, .hb-cur-amt, .hb-cur-acct-amt, .undertop .mini .v, .undertop .mini .s,
+  .hero .big, .hb-val, .hb-cur-amt, .undertop .mini .v, .undertop .mini .s,
   .card-sum, .entry-row .amt, .ci-amt, .cat-head .ctot,
   .acct-row .acct-amt, .goal-fig, .pct, #baselineInput { transition:filter .2s; }
 
@@ -136,7 +133,6 @@
   body.privacy-on .hero .big { filter:blur(12px); user-select:none; }
   body.privacy-on .hb-val,
   body.privacy-on .hb-cur-amt,
-  body.privacy-on .hb-cur-acct-amt,
   body.privacy-on .undertop .mini .v,
   body.privacy-on .undertop .mini .s,
   body.privacy-on .card-sum,
@@ -311,18 +307,12 @@
         <div class="big" id="leftBig">—</div>
         <div class="breakdown" id="leftBreak"></div>
         <div class="hero-baseline"><span>income goal</span><input type="number" id="baselineInput" placeholder="optional" onchange="setBaseline(this.value)"><select id="baselineCurPick" class="cur-pick" onchange="setBaselineCur(this.value)"></select></div>
-              <div class="mascot-row">
-        <div class="mascot-left">
-          <select class="acct-pick" id="acctPick">
-            <option value="all">All accounts</option>
-          </select>
+        <div class="mascot-row">
           <div class="last-upd" id="lastUpd"></div>
-        </div>
-        <div class="mascot-side">
-          <div class="mascot-wrap">
-            <img src="digi-funance-clean.png" alt="mascot">
+          <div class="mascot-side">
+            <div class="mood-msg" id="moodMsg"></div>
+            <div class="mascot-wrap"><img id="mascotImg" src="digi-funance-clean.png" alt="" aria-hidden="true"></div>
           </div>
-          <div class="mood-msg" id="moodMsg"></div>
         </div>
       </div>
 
@@ -697,20 +687,6 @@ async function refreshRates(){
 function fillSelect(el,opts,val){ if(!el) return;
   el.innerHTML=opts.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join(""); if(val!=null) el.value=val; }
 
-function populateAccountPicker() {
-  const picker = document.getElementById('acctPick');
-  if (!picker) return;
-  const currentVal = picker.value;
-  picker.innerHTML = '<option value="all">All accounts</option>';
-  state.liquids.forEach(a => {
-    const opt = document.createElement('option');
-    opt.value = a.id;
-    opt.textContent = a.name;
-    picker.appendChild(opt);
-  });
-  if ([...picker.options].some(o => o.value === currentVal)) picker.value = currentVal;
-  picker.onchange = () => render();
-}
 function render(){
   const vk=viewKey(); const m=ensureMonth(vk); const cur=state.viewCur;
 
@@ -768,21 +744,11 @@ function render(){
   // HERO: total cash now (the one true number)
   const cash=sumLkr(state.liquids);
   const spent=(m.expenses||[]).reduce((s,e)=>s+e.amount,0);
-  populateAccountPicker();
-  const selectedAcct=document.getElementById('acctPick')?.value||'all';
-  let displayTotal=cash;
-  if(selectedAcct!=='all'){
-    const acct=state.liquids.find(a=>a.id===selectedAcct);
-    displayTotal=acct?toLkr(acct.amount,acct.cur):0;
-  }
   const lb=document.getElementById("leftBig");
-  lb.textContent=fmt(displayTotal,cur); lb.classList.toggle("negative",displayTotal<0);
+  lb.textContent=fmt(cash,cur); lb.classList.toggle("negative",cash<0);
   const acctCount=state.liquids.length;
-  const selAcctObj=state.liquids.find(a=>a.id===selectedAcct);
   document.getElementById("leftBreak").innerHTML =
-    selectedAcct==='all'
-      ? (acctCount ? `across ${acctCount} account${acctCount>1?"s":""}` : `add an account below to begin`)
-      : (selAcctObj ? `${esc(selAcctObj.name)} · ${selAcctObj.cur}` : ``);
+    acctCount ? `across ${acctCount} account${acctCount>1?"s":""}` : `add an account below to begin`;
   fillSelect(document.getElementById("baselineCurPick"), curList(), state.baselineCur);
   const bi=document.getElementById("baselineInput");
   if(bi&&document.activeElement!==bi){
@@ -1024,7 +990,7 @@ function drawHeroCur(){
   if(!entries.length){ el.innerHTML='<div style="color:rgba(255,255,255,0.5);font-size:12px;padding-top:8px">No accounts yet — add one below.</div>'; return; }
   el.innerHTML=entries.map(([c,{total,accts}])=>{
     const p=c==='LKR'?0:2;
-    const acctList=accts.map(a=>`${esc(a.name)} <span class="hb-cur-acct-amt">${a.amount.toLocaleString(undefined,{maximumFractionDigits:p})}</span>`).join('<br>');
+    const acctList=accts.map(a=>`${esc(a.name)} ${a.amount.toLocaleString(undefined,{maximumFractionDigits:p})}`).join('<br>');
     return `<div class="hb-cur-row">
       <div><div class="hb-cur-code">${esc(c)}</div><div class="hb-cur-accts">${acctList}</div></div>
       <div class="hb-cur-amt">${total.toLocaleString(undefined,{maximumFractionDigits:p})}</div>
@@ -1072,9 +1038,3 @@ load();
 </script>
 </body>
 </html>
-
-
-
-
-
-
