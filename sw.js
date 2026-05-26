@@ -1,13 +1,13 @@
 /* Funance service worker — offline support.
    Cache version is bumped automatically by .githooks/pre-commit on every commit. */
-const CACHE = 'funance-20260525092229';
+const CACHE = 'funance-20260526073556';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  './digi-funance.png'
+  './digi-funance-clean.png'
 ];
 
 self.addEventListener('install', e => {
