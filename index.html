@@ -11,6 +11,9 @@
 <meta name="apple-mobile-web-app-title" content="Funance">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" href="icon-192.png">
+<!-- Google Identity Services — OAuth token flow for Drive backup. Loaded async;
+     all code guards on `gisReady()` so the app works even if this never loads (offline). -->
+<script src="https://accounts.google.com/gsi/client" async></script>
 <title>Funance</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Spline+Sans+Mono:wght@400;500;600&display=swap');
@@ -457,6 +460,18 @@
     <div class="rates" id="ratesBox"></div>
   </div>
 
+  <!-- Cloud backup (Google Drive) -->
+  <div class="card no-print">
+    <h2><span>Cloud backup</span></h2>
+    <div class="hint">Back up to your Google Drive so you can recover after a reinstall or a new phone.</div>
+    <div id="driveStatus" style="font-size:13px;margin-bottom:4px;">Not connected</div>
+    <div id="driveLast" style="font-size:11px;color:var(--muted);margin-bottom:12px;">Last backup: never</div>
+    <button class="ghost" id="driveConnectBtn" onclick="driveConnect()">Connect Google Drive</button>
+    <button class="ghost" onclick="driveBackupNow()">↑ Back up now</button>
+    <button class="ghost" onclick="driveRestore()">↓ Load latest backup</button>
+    <div id="driveMsg" style="font-size:11px;color:var(--accent);margin-top:8px;min-height:14px;"></div>
+  </div>
+
   <div class="footer-actions no-print">
     <button class="ghost" onclick="printMonth()">↓ PDF — this month</button>
     <button class="ghost" onclick="printAll()">↓ PDF — everything</button>
@@ -501,6 +516,9 @@ function seed(){
     liquids:[],
     goals:[],
     acctExclude:[],
+    driveConnected:false,
+    driveFileId:null,
+    lastBackupTimestamp:0,
   };
 }
 
@@ -545,6 +563,9 @@ function load(){
   if(!state.baselineCur) state.baselineCur="LKR";
   if(state.privacyMode===undefined) state.privacyMode=false;
   if(!state.acctExclude) state.acctExclude=[];
+  if(state.driveConnected===undefined) state.driveConnected=false;
+  if(state.driveFileId===undefined) state.driveFileId=null;
+  if(state.lastBackupTimestamp===undefined) state.lastBackupTimestamp=0;
   ensureMonth(thisKey());
   render();
   applyPrivacy();
@@ -1064,7 +1085,189 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+/* ============================================================
+   Google Drive backup / restore
+   - OAuth via Google Identity Services (GIS), drive.file scope only.
+   - Backup payload === downloadJSON()'s payload (the whole `state`).
+   - Restore always searches Drive by filename, never trusts a stored id,
+     so it can recover after local data (incl. the file id) is wiped.
+   ============================================================ */
+const DRIVE_CLIENT_ID = '124671548524-5v0asu2g229por58fqgi51utuvt88rbq.apps.googleusercontent.com';
+const DRIVE_SCOPE     = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_FILENAME  = 'funance-backup.json';
+const WEEK_MS = 7*24*60*60*1000;
+
+let driveToken = null;     // short-lived access token, kept only in memory
+let tokenClient = null;    // GIS token client, created once
+
+function gisReady(){ return typeof google!=='undefined' && google.accounts && google.accounts.oauth2; }
+
+function initTokenClient(){
+  if(tokenClient) return true;
+  if(!gisReady()) return false;
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: DRIVE_CLIENT_ID, scope: DRIVE_SCOPE, callback: ()=>{}
+  });
+  return true;
+}
+
+/* Acquire an access token. prompt:'' lets Google skip the consent screen when
+   it already has a grant (silent refresh); it shows UI only when it must.
+   Must originate from a user gesture the first time a grant is needed. */
+function requestToken(){
+  return new Promise((resolve,reject)=>{
+    if(!initTokenClient()) return reject(new Error('Google library not loaded'));
+    tokenClient.callback = resp => {
+      if(resp && resp.error) return reject(new Error(resp.error));
+      driveToken = resp.access_token;
+      resolve(driveToken);
+    };
+    tokenClient.error_callback = err => reject(new Error((err && err.type) || 'auth_failed'));
+    try { tokenClient.requestAccessToken({ prompt:'' }); }
+    catch(e){ reject(e); }
+  });
+}
+
+/* Find the backup file by name. Returns the most-recently-modified match
+   (defensive against accidental duplicates), or null. */
+async function driveFindBackup(token){
+  const q = encodeURIComponent(`name='${DRIVE_FILENAME}' and trashed=false`);
+  const url = `https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive`
+            + `&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`;
+  const res = await fetch(url, { headers:{ Authorization:'Bearer '+token } });
+  if(!res.ok) throw new Error('Drive list '+res.status);
+  const data = await res.json();
+  return (data.files && data.files.length) ? data.files[0] : null;
+}
+
+async function driveUpload(token){
+  const json = JSON.stringify(state, null, 2);
+  let fileId = state.driveFileId;
+  // No local id? Search before creating, so a reinstall doesn't make a duplicate.
+  if(!fileId){ const existing = await driveFindBackup(token); if(existing) fileId = existing.id; }
+
+  let res;
+  if(fileId){
+    res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id`,
+      { method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' }, body: json });
+    if(res.status===404) fileId = null; // stored id stale → fall through to create
+  }
+  if(!fileId){
+    const boundary = 'funance'+Date.now();
+    const meta = { name: DRIVE_FILENAME, mimeType:'application/json' };
+    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`
+               + JSON.stringify(meta) + `\r\n`
+               + `--${boundary}\r\nContent-Type: application/json\r\n\r\n`
+               + json + `\r\n--${boundary}--`;
+    res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+      { method:'POST', headers:{ Authorization:'Bearer '+token, 'Content-Type':'multipart/related; boundary='+boundary }, body });
+  }
+  if(!res.ok) throw new Error('Drive upload '+res.status);
+  const out = await res.json();
+  if(out && out.id) state.driveFileId = out.id;
+  state.lastBackupTimestamp = Date.now();   // only AFTER success
+  state.driveConnected = true;
+  save();
+}
+
+async function driveDownloadAndRestore(token){
+  const f = await driveFindBackup(token);
+  if(!f){ driveMsg('No backup found in Drive for this account'); return; }
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`,
+    { headers:{ Authorization:'Bearer '+token } });
+  if(!res.ok) throw new Error('Drive download '+res.status);
+  const data = await res.json();
+  if(!data || typeof data!=='object' || !data.months){ driveMsg('Backup file is not valid Funance data'); return; }
+  const when = f.modifiedTime ? new Date(f.modifiedTime).toLocaleString() : 'an unknown date';
+  if(!confirm(`Restore from backup dated ${when}? This will replace your current data.`)) { driveMsg(''); return; }
+
+  // Same normalization importJSON() does, so older backups stay valid.
+  state = data;
+  state.rates = { ...DEFAULT_RATES, ...(state.rates||{}) };
+  if(!state.categories) state.categories=["Food","Transport","Shopping","Bills","Fun","Other"];
+  if(!state.currencies) state.currencies=[...DEFAULT_CURRENCIES];
+  state.currencies.forEach(c=>{ if(state.rates[c]==null) state.rates[c]=1; });
+  if(!state.months) state.months={};
+  if(!state.liquids) state.liquids=[];
+  if(!state.goals) state.goals=[];
+  if(state.incomeBaseline===undefined) state.incomeBaseline=0;
+  if(!state.baselineCur) state.baselineCur="LKR";
+  if(state.privacyMode===undefined) state.privacyMode=false;
+  if(!state.acctExclude) state.acctExclude=[];
+  state.driveConnected = true;
+  state.driveFileId = f.id;             // adopt the file we just restored from
+  if(state.lastBackupTimestamp===undefined) state.lastBackupTimestamp=0;
+
+  ensureMonth(thisKey()); viewIndex=0; save(); render(); applyPrivacy();
+  driveMsg('Restored from '+when);
+}
+
+/* ---- UI glue ---- */
+function driveMsg(m){ const el=document.getElementById('driveMsg'); if(el) el.textContent = m||''; }
+
+function renderDriveUI(){
+  const conn = document.getElementById('driveStatus');
+  if(!conn) return;
+  const live = state.driveConnected && !!driveToken;
+  conn.textContent = !state.driveConnected ? 'Not connected'
+                   : live ? 'Connected to Google Drive'
+                   : 'Connected — tap Reconnect to refresh access';
+  const btn = document.getElementById('driveConnectBtn');
+  btn.textContent = state.driveConnected ? 'Reconnect Google Drive' : 'Connect Google Drive';
+  btn.style.display = live ? 'none' : '';
+  document.getElementById('driveLast').textContent =
+    state.lastBackupTimestamp ? 'Last backup: '+new Date(state.lastBackupTimestamp).toLocaleString()
+                              : 'Last backup: never';
+}
+
+async function driveConnect(){
+  driveMsg('Connecting…');
+  try{ await requestToken(); state.driveConnected=true; save(); driveMsg('Connected.'); renderDriveUI(); }
+  catch(e){ driveMsg('Could not connect: '+e.message); renderDriveUI(); }
+}
+async function driveBackupNow(){
+  driveMsg('Backing up…');
+  try{
+    const t = driveToken || await requestToken();
+    await driveUpload(t);
+    driveMsg('Backed up '+new Date(state.lastBackupTimestamp).toLocaleString());
+    renderDriveUI();
+  }catch(e){ driveMsg('Backup failed: '+e.message); renderDriveUI(); }
+}
+async function driveRestore(){
+  driveMsg('Searching Drive…');
+  try{
+    const t = driveToken || await requestToken();
+    await driveDownloadAndRestore(t);
+    renderDriveUI();
+  }catch(e){ driveMsg('Restore failed: '+e.message); renderDriveUI(); }
+}
+
+/* Silent weekly backup: only for already-connected users, never forces a popup. */
+async function maybeWeeklyBackup(){
+  if(!navigator.onLine) return;
+  if(!state.driveConnected) return;
+  if(state.lastBackupTimestamp && (Date.now()-state.lastBackupTimestamp) < WEEK_MS) return;
+  try{ const t = await requestToken(); await driveUpload(t); renderDriveUI(); }
+  catch(e){ renderDriveUI(); } // stay silent; Reconnect button will surface
+}
+
+function whenGisReady(cb, tries=25){
+  if(gisReady()){ cb(); return; }
+  if(tries<=0) return;
+  setTimeout(()=>whenGisReady(cb, tries-1), 300);
+}
+
 load();
+renderDriveUI();
+whenGisReady(()=>{
+  initTokenClient();
+  if(state.driveConnected){
+    // Returning user: try a silent token refresh, then the weekly check.
+    requestToken().then(()=>{ renderDriveUI(); maybeWeeklyBackup(); })
+                  .catch(()=>renderDriveUI()); // shows Reconnect on failure
+  }
+});
 
 </script>
 </body>
