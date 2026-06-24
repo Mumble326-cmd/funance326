@@ -557,6 +557,7 @@ function seed(){
     acctExclude:[],
     driveConnected:false,
     driveFileId:null,
+    driveHint:null,
     lastBackupTimestamp:0,
   };
 }
@@ -604,6 +605,7 @@ function load(){
   if(!state.acctExclude) state.acctExclude=[];
   if(state.driveConnected===undefined) state.driveConnected=false;
   if(state.driveFileId===undefined) state.driveFileId=null;
+  if(state.driveHint===undefined) state.driveHint=null;
   if(state.lastBackupTimestamp===undefined) state.lastBackupTimestamp=0;
   ensureMonth(thisKey());
   render();
@@ -1150,10 +1152,13 @@ function initTokenClient(){
   return true;
 }
 
-/* Acquire an access token. prompt:'' lets Google skip the consent screen when
-   it already has a grant (silent refresh); it shows UI only when it must.
-   Must originate from a user gesture the first time a grant is needed. */
-function requestToken(){
+/* Acquire an access token.
+   silent:true  → prompt:'none'  — never shows any UI; rejects if interaction required.
+                  Used for background attempts (page load, weekly backup).
+   silent:false → prompt:''      — shows sign-in UI only if Google can't fulfil silently.
+                  Used for explicit user button presses.
+   hint stores the signed-in email so Google can skip the account-picker on silent attempts. */
+function requestToken({ silent=false }={}){
   return new Promise((resolve,reject)=>{
     if(!initTokenClient()) return reject(new Error('Google library not loaded'));
     tokenClient.callback = resp => {
@@ -1162,7 +1167,9 @@ function requestToken(){
       resolve(driveToken);
     };
     tokenClient.error_callback = err => reject(new Error((err && err.type) || 'auth_failed'));
-    try { tokenClient.requestAccessToken({ prompt:'' }); }
+    const opts = { prompt: silent ? 'none' : '' };
+    if(state.driveHint) opts.hint = state.driveHint;
+    try { tokenClient.requestAccessToken(opts); }
     catch(e){ reject(e); }
   });
 }
@@ -1261,8 +1268,17 @@ function renderDriveUI(){
 
 async function driveConnect(){
   driveMsg('Connecting…');
-  try{ await requestToken(); state.driveConnected=true; save(); driveMsg('Connected.'); renderDriveUI(); }
-  catch(e){ driveMsg('Could not connect: '+e.message); renderDriveUI(); }
+  try{
+    await requestToken();
+    // Persist the signed-in email as a hint so future silent refreshes can skip the account picker.
+    try{
+      const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',
+        { headers:{ Authorization:'Bearer '+driveToken } });
+      const u=await r.json();
+      if(u.email) state.driveHint=u.email;
+    }catch(e){}  // hint is best-effort; sign-in already succeeded
+    state.driveConnected=true; save(); driveMsg('Connected.'); renderDriveUI();
+  }catch(e){ driveMsg('Could not connect: '+e.message); renderDriveUI(); }
 }
 async function driveBackupNow(){
   driveMsg('Backing up…');
@@ -1301,9 +1317,14 @@ load();
 renderDriveUI();
 whenGisReady(()=>{
   initTokenClient();
-  // Token is only acquired when the user explicitly taps a Drive button.
-  // Auto-requesting on load caused an unwanted sign-in popup every time the app opened.
-  renderDriveUI();
+  if(state.driveConnected){
+    // Silent-only attempt: never shows UI. If it succeeds the token is warm and
+    // subsequent button presses won't need to wait. If it fails, the Reconnect
+    // button is shown — the user signs in once and we're good again.
+    requestToken({ silent:true }).then(()=>renderDriveUI()).catch(()=>renderDriveUI());
+  } else {
+    renderDriveUI();
+  }
 });
 
 </script>
