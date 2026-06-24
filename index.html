@@ -277,6 +277,41 @@
   .footer-actions .reset { grid-column:1/-1; background:transparent; color:var(--bad); border:1px solid var(--bad); opacity:0.7; }
   .footer-actions .reset:hover { opacity:1; filter:none; }
 
+  /* Clamp horizontal overflow so a single wide element can't widen the viewport
+     and trigger "desktop site" mode on mobile browsers. */
+  html, body { overflow-x: hidden; }
+
+  /* ── Responsive: desktop / tablet (≥ 640 px) ─────────────────────────── */
+  @media (min-width: 640px) {
+    body {
+      max-width: 860px;
+      padding: 36px 40px 110px;
+      font-size: 15px;
+    }
+    .wordmark { font-size: 30px; }
+    .monthnav .mlabel { font-size: 26px; min-width: 190px; }
+    .hero .big { font-size: 48px; }
+    .hero-panel { padding: 22px 28px 14px; }
+    .hero-dots { padding: 8px 28px 14px; }
+    .undertop { gap: 14px; }
+    .undertop .mini { padding: 18px 18px; border-radius: 22px; }
+    .undertop .mini .v { font-size: 22px; }
+    .card { padding: 22px 26px; border-radius: 22px; }
+    .card h2 { font-size: 11px; }
+    .entry-row { font-size: 15px; }
+    .cat-head .cname { font-size: 15px; }
+  }
+
+  /* Two-column card grid for wide desktop (≥ 1024 px) */
+  @media (min-width: 1024px) {
+    body { max-width: 1100px; }
+    .two-col-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+  }
+
   @media print {
     body { background:#fff; color:#111; max-width:none; padding:0; }
     .no-print, .add-form, .entry-form, .mode-toggle, .footer-actions, .rates, .cur-pick, .x, .savestate, .chart-tabs, .sub-toggle, .monthnav button { display:none !important; }
@@ -364,6 +399,8 @@
     <div class="chart-view" id="chartView"></div>
   </div>
 
+  <div class="two-col-grid">
+
   <!-- Income (per month) -->
   <div class="card">
     <h2><span>Income <span class="scope-tag">this month</span></span><span class="card-sum" id="incomeSum"></span></h2>
@@ -413,6 +450,8 @@
       <button class="full" onclick="addExpense()">Add</button>
     </div>
   </div>
+
+  </div><!-- /two-col-grid -->
 
   <!-- Accounts (continuous) -->
   <div class="card">
@@ -1262,11 +1301,9 @@ load();
 renderDriveUI();
 whenGisReady(()=>{
   initTokenClient();
-  if(state.driveConnected){
-    // Returning user: try a silent token refresh, then the weekly check.
-    requestToken().then(()=>{ renderDriveUI(); maybeWeeklyBackup(); })
-                  .catch(()=>renderDriveUI()); // shows Reconnect on failure
-  }
+  // Token is only acquired when the user explicitly taps a Drive button.
+  // Auto-requesting on load caused an unwanted sign-in popup every time the app opened.
+  renderDriveUI();
 });
 
 </script>
