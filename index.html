@@ -1123,7 +1123,7 @@ function importJSON(){
 
 /* Build id — kept in sync with sw.js CACHE by .githooks/pre-commit.
    Shown in the footer so you can confirm which build the device is running. */
-const BUILD = 'funance-20260624141459';
+const BUILD = 'funance-20260624141741';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -1133,10 +1133,12 @@ if ('serviceWorker' in navigator) {
   });
   // When a new service worker takes control, reload once into the fresh code.
   // This removes the "close and reopen twice" dance for every future update.
-  let _swReloading = false;
+  // Reload once when a new SW takes control. sessionStorage guard survives the
+  // reload itself, so a flaky/repeated activation (notably on iOS WKWebView)
+  // can't trigger a reload loop. Cleared automatically when the app is closed.
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (_swReloading) return;
-    _swReloading = true;
+    if (sessionStorage.getItem('sw-reloaded')) return;
+    sessionStorage.setItem('sw-reloaded', '1');
     window.location.reload();
   });
 }
@@ -1362,6 +1364,9 @@ async function maybeWeeklyBackup(){
   if(!navigator.onLine) return;
   if(!state.driveConnected) return;
   if(state.lastBackupTimestamp && (Date.now()-state.lastBackupTimestamp) < WEEK_MS) return;
+  // Hard guard: only proceed with a VALID cached token. Without this, an expired
+  // token here would fall through to requestToken() → GIS → a popup at boot.
+  if(!getCachedToken()) return;
   try{ const t = await requestToken(); await driveUpload(t); renderDriveUI(); }
   catch(e){ renderDriveUI(); }
 }
