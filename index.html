@@ -519,6 +519,8 @@
     <button class="reset" onclick="resetAll()">Reset everything</button>
   </div>
 
+  <div id="buildStamp" style="text-align:center;font-size:10px;color:var(--muted);opacity:0.6;margin-top:14px;letter-spacing:0.5px;"></div>
+
 <script>
 const DEFAULT_CURRENCIES = ["LKR","USD","BDT","EUR","INR"];
 function curList(){ return (state && state.currencies) ? state.currencies : DEFAULT_CURRENCIES; }
@@ -1119,11 +1121,26 @@ function importJSON(){
   inp.click();
 }
 
+/* Build id — kept in sync with sw.js CACHE by .githooks/pre-commit.
+   Shown in the footer so you can confirm which build the device is running. */
+const BUILD = 'funance-20260624141459';
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(()=>{});
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+      .then(reg => { reg.update(); })   // proactively check for a newer SW each launch
+      .catch(()=>{});
+  });
+  // When a new service worker takes control, reload once into the fresh code.
+  // This removes the "close and reopen twice" dance for every future update.
+  let _swReloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (_swReloading) return;
+    _swReloading = true;
+    window.location.reload();
   });
 }
+{ const bs=document.getElementById('buildStamp'); if(bs) bs.textContent='build '+BUILD; }
 
 /* ============================================================
    Google Drive backup / restore

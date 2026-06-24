@@ -7,6 +7,9 @@ STAMP=$(date +%Y%m%d%H%M%S)
 NEW="funance-${STAMP}"
 
 sed -i "s/const CACHE = 'funance-[^']*'/const CACHE = '${NEW}'/" sw.js
+# Keep the visible in-app build stamp in sync with the SW cache version,
+# so you can tell at a glance which build your device is actually running.
+sed -i "s/const BUILD = 'funance-[^']*'/const BUILD = '${NEW}'/" index.html
 
-git add sw.js
+git add sw.js index.html
 echo "SW cache version: ${NEW}"
