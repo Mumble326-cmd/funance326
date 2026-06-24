@@ -11,9 +11,8 @@
 <meta name="apple-mobile-web-app-title" content="Funance">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" href="icon-192.png">
-<!-- Google Identity Services — OAuth token flow for Drive backup. Loaded async;
-     all code guards on `gisReady()` so the app works even if this never loads (offline). -->
-<script src="https://accounts.google.com/gsi/client" async></script>
+<!-- GIS is loaded on-demand (lazy) inside requestToken() — NOT here.
+     Loading it eagerly lets Google auto-trigger FedCM/One Tap popups on startup. -->
 <title>Funance</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Spline+Sans+Mono:wght@400;500;600&display=swap');
@@ -1141,12 +1140,10 @@ const TOKEN_STORE = 'drive_token_v1';
 
 let driveToken = null;
 let tokenClient = null;
+let gisLoadPromise = null;
 
-/* Token cache — persists the access token across page loads.
-   GIS tokens last 3600 s; we treat anything with < 60 s left as expired.
-   Standalone PWA WebViews are isolated from the browser's Google session,
-   so every fresh GIS request pops a login window. Caching the token means
-   the popup is needed once per hour at most. */
+/* Token cache — persists the access token in localStorage across page loads.
+   GIS tokens last 3600 s; we treat anything with < 60 s left as expired. */
 function getCachedToken(){
   try{
     const c = JSON.parse(localStorage.getItem(TOKEN_STORE));
@@ -1161,11 +1158,26 @@ function clearCachedToken(){
   try{ localStorage.removeItem(TOKEN_STORE); }catch(e){}
 }
 
-function gisReady(){ return typeof google!=='undefined' && google.accounts && google.accounts.oauth2; }
+/* Lazy-load GIS only when a Drive button is actually pressed.
+   Loading it eagerly on startup lets Google auto-trigger FedCM / One Tap
+   popups before our code runs — this eliminates that entirely. */
+function loadGis(){
+  if(typeof google!=='undefined' && google.accounts && google.accounts.oauth2)
+    return Promise.resolve();
+  if(!gisLoadPromise){
+    gisLoadPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://accounts.google.com/gsi/client';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Could not load Google library'));
+      document.head.appendChild(s);
+    });
+  }
+  return gisLoadPromise;
+}
 
 function initTokenClient(){
   if(tokenClient) return true;
-  if(!gisReady()) return false;
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: DRIVE_CLIENT_ID, scope: DRIVE_SCOPE, callback: ()=>{}
   });
@@ -1173,15 +1185,13 @@ function initTokenClient(){
 }
 
 /* Return a valid access token.
-   Checks the localStorage cache first — if the cached token still has time
-   left, returns it immediately (no network, no popup).
-   Only falls through to GIS (which may show a popup) when the cache is empty
-   or expired. After a fresh GIS grant the token is cached for next time. */
+   1. Cached & unexpired → return immediately, zero network, zero popup.
+   2. Cache miss/expired → lazy-load GIS, show sign-in once, cache the result. */
 function requestToken(){
   const cached = getCachedToken();
   if(cached){ driveToken = cached; return Promise.resolve(cached); }
-  return new Promise((resolve,reject)=>{
-    if(!initTokenClient()) return reject(new Error('Google library not loaded'));
+  return loadGis().then(() => new Promise((resolve, reject) => {
+    initTokenClient();
     tokenClient.callback = resp => {
       if(resp && resp.error) return reject(new Error(resp.error));
       driveToken = resp.access_token;
@@ -1191,9 +1201,8 @@ function requestToken(){
     tokenClient.error_callback = err => reject(new Error((err && err.type) || 'auth_failed'));
     const opts = { prompt:'' };
     if(state.driveHint) opts.hint = state.driveHint;
-    try { tokenClient.requestAccessToken(opts); }
-    catch(e){ reject(e); }
-  });
+    tokenClient.requestAccessToken(opts);
+  }));
 }
 
 /* Find the backup file by name. Returns the most-recently-modified match
@@ -1331,32 +1340,20 @@ async function driveRestore(){
   }catch(e){ driveMsg('Restore failed: '+e.message); renderDriveUI(); }
 }
 
-/* Silent weekly backup: only for already-connected users, never forces a popup. */
+/* Silent weekly backup — uses the cached token, never loads GIS on its own. */
 async function maybeWeeklyBackup(){
   if(!navigator.onLine) return;
   if(!state.driveConnected) return;
   if(state.lastBackupTimestamp && (Date.now()-state.lastBackupTimestamp) < WEEK_MS) return;
   try{ const t = await requestToken(); await driveUpload(t); renderDriveUI(); }
-  catch(e){ renderDriveUI(); } // stay silent; Reconnect button will surface
-}
-
-function whenGisReady(cb, tries=25){
-  if(gisReady()){ cb(); return; }
-  if(tries<=0) return;
-  setTimeout(()=>whenGisReady(cb, tries-1), 300);
+  catch(e){ renderDriveUI(); }
 }
 
 load();
+// Restore cached token — pure localStorage read, no network, no GIS, no popup.
+const _ct = getCachedToken();
+if(_ct){ driveToken = _ct; maybeWeeklyBackup(); }
 renderDriveUI();
-whenGisReady(()=>{
-  initTokenClient();
-  // Restore cached token from localStorage — no GIS call, no popup.
-  // If a valid token exists from this session or the last hour, Drive buttons
-  // will work immediately and the weekly backup can run silently.
-  const cached = getCachedToken();
-  if(cached){ driveToken = cached; maybeWeeklyBackup(); }
-  renderDriveUI();
-});
 
 </script>
 </body>
