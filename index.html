@@ -1153,12 +1153,11 @@ function initTokenClient(){
 }
 
 /* Acquire an access token.
-   silent:true  → prompt:'none'  — never shows any UI; rejects if interaction required.
-                  Used for background attempts (page load, weekly backup).
-   silent:false → prompt:''      — shows sign-in UI only if Google can't fulfil silently.
-                  Used for explicit user button presses.
-   hint stores the signed-in email so Google can skip the account-picker on silent attempts. */
-function requestToken({ silent=false }={}){
+   prompt:'' lets Google skip the sign-in screen when it can fulfil silently
+   (active session + prior grant). hint tells GIS which account to use so it
+   can skip the account-picker — critical for making this feel seamless after
+   the first sign-in. Only ever called from an explicit user button press. */
+function requestToken(){
   return new Promise((resolve,reject)=>{
     if(!initTokenClient()) return reject(new Error('Google library not loaded'));
     tokenClient.callback = resp => {
@@ -1167,7 +1166,7 @@ function requestToken({ silent=false }={}){
       resolve(driveToken);
     };
     tokenClient.error_callback = err => reject(new Error((err && err.type) || 'auth_failed'));
-    const opts = { prompt: silent ? 'none' : '' };
+    const opts = { prompt:'' };
     if(state.driveHint) opts.hint = state.driveHint;
     try { tokenClient.requestAccessToken(opts); }
     catch(e){ reject(e); }
@@ -1254,13 +1253,12 @@ function driveMsg(m){ const el=document.getElementById('driveMsg'); if(el) el.te
 function renderDriveUI(){
   const conn = document.getElementById('driveStatus');
   if(!conn) return;
-  const live = state.driveConnected && !!driveToken;
+  const hint = state.driveHint ? ' ('+state.driveHint+')' : '';
   conn.textContent = !state.driveConnected ? 'Not connected'
-                   : live ? 'Connected to Google Drive'
-                   : 'Connected — tap Reconnect to refresh access';
+                   : 'Connected'+hint;
   const btn = document.getElementById('driveConnectBtn');
   btn.textContent = state.driveConnected ? 'Reconnect Google Drive' : 'Connect Google Drive';
-  btn.style.display = live ? 'none' : '';
+  btn.style.display = '';   // always show — lets user switch accounts
   document.getElementById('driveLast').textContent =
     state.lastBackupTimestamp ? 'Last backup: '+new Date(state.lastBackupTimestamp).toLocaleString()
                               : 'Last backup: never';
@@ -1317,14 +1315,10 @@ load();
 renderDriveUI();
 whenGisReady(()=>{
   initTokenClient();
-  if(state.driveConnected){
-    // Silent-only attempt: never shows UI. If it succeeds the token is warm and
-    // subsequent button presses won't need to wait. If it fails, the Reconnect
-    // button is shown — the user signs in once and we're good again.
-    requestToken({ silent:true }).then(()=>renderDriveUI()).catch(()=>renderDriveUI());
-  } else {
-    renderDriveUI();
-  }
+  // No requestToken call here — any requestAccessToken call opens a browser
+  // popup window on mobile regardless of the prompt flag. Tokens are acquired
+  // only when the user explicitly taps a Drive button.
+  renderDriveUI();
 });
 
 </script>
